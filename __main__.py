@@ -6,6 +6,7 @@ Run with: python -m edo
 """
 
 import sys
+import shutil
 
 # ANSI color codes
 RED = "\033[31m"
@@ -16,28 +17,39 @@ MAGENTA = "\033[35m"
 CYAN = "\033[36m"
 RESET = "\033[0m"
 
+def center_lines(text):
+    """Centers each line of a multi-line string based on terminal width."""
+    terminal_width = shutil.get_terminal_size().columns
+    centered_lines = [line.strip().center(terminal_width) for line in text.split('\n')]
+    return '\n'.join(centered_lines)
+
+
 def main():
     banner = f"""
-{RED}███████╗{GREEN}██████╗   {YELLOW}██████╗ 
-{RED}██╔════╝{GREEN}██╔═══██ {YELLOW}██╔═══██╗
-{RED}█████╗  {GREEN}██║   ██ {YELLOW}██║   ██║
-{RED}██╔══╝  {GREEN}██║   ██ {YELLOW}██║   ██║
-{RED}███████╗{GREEN}██████╔╝ {YELLOW}╚██████╔╝
-{RED}╚══════╝{GREEN}╚═════╝   {YELLOW}╚═════╝ 
-
-{CYAN}      Numerical EDO Solver {RESET}
-"""
-    print(banner)
-    print("="*60)
-    print(f"{MAGENTA} Welcome to the EDO solver package {RESET}")
-    print("="*60)
+        {RED}███████╗{GREEN}██████╗   {YELLOW}██████╗
+        {RED}██╔════╝{GREEN}██╔═══██ {YELLOW}██╔═══██╗
+        {RED}█████╗  {GREEN}██║   ██ {YELLOW}██║   ██║
+        {RED}██╔══╝  {GREEN}██║   ██ {YELLOW}██║   ██║
+        {RED}███████╗{GREEN}██████╔╝ {YELLOW}╚██████╔╝
+        {RED}╚══════╝{GREEN}╚═════╝   {YELLOW}╚═════╝
+        {CYAN}Numerical EDO Solver {RESET}
+    """
+    print(center_lines(banner))
+    # Center other text
+    separator = "=" * 60
+    welcome_message = f"{MAGENTA}Welcome to the EDO solver package{RESET}"
+    
+    print(center_lines(separator))
+    print(center_lines(welcome_message))
+    print(center_lines(separator))
+    
     print("\nAvailable demos:")
     print("  1. Coupled Linear System")
     print("  2. Lorenz System")
     print("\nRun them with:")
     print("  python -m edo.exemples.coupled_linear_system")
     print("  python -m edo.exemples.lorenz_system")
-    print(f"\n{BLUE}Enjoy solving EDOs! {RESET}")  
+    print(f"\n{BLUE}Enjoy solving EDOs! {RESET}")
 
 if __name__ == "__main__":
     sys.exit(main())
