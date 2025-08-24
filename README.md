@@ -49,12 +49,12 @@ $$ x'(t) = -x(t) + y(t),$$
 
 $$ y'(t) = -y(t), $$
 
-with $ x(0) = 1, y(0) = 1 $,
+with $$ x(0) = 1, y(0) = 1, $$
 
 using **RK4** and **SDIRK** solvers, and compares to the analytical solution:
 
-$$x(t) = e^-t  (1 + t),  $$
-$$y(t) = e^-t$$
+$$x(t) = e^{-t}  (1 + t),  $$
+$$y(t) = e^{-t}$$
 
 ---
 
