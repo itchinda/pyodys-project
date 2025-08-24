@@ -58,6 +58,6 @@ plt.grid(True)
 
 plt.tight_layout()
 
-plt.savefig("quick_example.png")
+#plt.savefig("figures/quick_example.png")
 
 plt.show()

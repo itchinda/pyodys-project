@@ -113,7 +113,7 @@ def available_butcher_table_data_to_json():
     with open(file_path, 'w') as f:
         json.dump(all_schemes, f, indent=4)
     
-    print(f"Successfully generated {file_path} with {len(all_schemes)} schemes.")
+    #print(f"Successfully generated {file_path} with {len(all_schemes)} schemes.")
 
 if __name__ == '__main__':
     available_butcher_table_data_to_json()
