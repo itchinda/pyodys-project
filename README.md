@@ -90,33 +90,22 @@ t0 = 0.0
 u0 = [1.0, 1.0]
 systeme = SystemeCouple(t0, u0)
 
-# Solver parameters
-pas = 0.01
-N = 1000
-
 # RK4 solver
-solveur_rk4 = SolveurRKAvecTableauDeButcher(TableauDeButcher.par_nom('rk4'))
-t_rk4, sol_rk4 = solveur_rk4.solve(systeme, pas, N)
-
-# SDIRK solver
-solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.par_nom('sdirk_ordre3_predefini'))
-t_sdirk, sol_sdirk = solveur_sdirk.solve(systeme, pas, N)
+solveur_rk4 = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('rk4'))
+t_rk4, sol_rk4 = solveur_rk4.solve(systeme, pas_de_temps=0.01, nb_pas_de_temps_max=1000)
 
 # Compute analytical solution
 sol_ana = np.array([solution_analytique(ti, t0, u0) for ti in t_rk4])
 
 # Compute errors
 err_rk4 = np.linalg.norm(sol_rk4 - sol_ana, axis=1)
-err_sdirk = np.linalg.norm(sol_sdirk - sol_ana, axis=1)
 
 # Plot solutions
 plt.figure(figsize=(12,6))
 
 plt.subplot(1,2,1)
-plt.plot(t_rk4, sol_ana[:,0], 'k-', label='x(t) Analytical')
-plt.plot(t_rk4, sol_ana[:,1], 'k--', label='y(t) Analytical')
-plt.plot(t_rk4, sol_rk4[:,0], 'b.', markersize=2, label='x(t) RK4')
-plt.plot(t_rk4, sol_rk4[:,1], 'r.', markersize=2, label='y(t) RK4')
+plt.plot(t_rk4, sol_rk4[:,0], 'b.-', markersize=2, label='x(t) RK4')
+plt.plot(t_rk4, sol_rk4[:,1], 'r-', markersize=2, label='y(t) RK4')
 plt.title("Coupled Linear System: Solutions")
 plt.xlabel("Time")
 plt.ylabel("Value")
@@ -125,7 +114,6 @@ plt.grid(True)
 
 plt.subplot(1,2,2)
 plt.plot(t_rk4, err_rk4, 'b-', label='Error RK4')
-plt.plot(t_rk4, err_sdirk, 'r--', label='Error SDIRK')
 plt.yscale('log')
 plt.title("Error vs Analytical Solution")
 plt.xlabel("Time")
@@ -134,7 +122,11 @@ plt.legend()
 plt.grid(True)
 
 plt.tight_layout()
+
+plt.savefig("quick_example.png")
+
 plt.show()
+
 ```
 
 ![Quick Example Output Figures](figures/quick_example.png)
