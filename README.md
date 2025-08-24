@@ -46,9 +46,7 @@ pip install numpy scipy matplotlib
 This example solves the coupled system:
 
 $$ x'(t) = -x(t) + y(t),$$
-
 $$ y'(t) = -y(t), $$
-
 with $$ x(0) = 1, y(0) = 1, $$
 
 using **RK4** and **SDIRK** solvers, and compares to the analytical solution:
