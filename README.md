@@ -45,22 +45,18 @@ pip install numpy scipy matplotlib
 
 This example solves the coupled system:
 
-\[
-\begin{cases}
-x'(t) = -x(t) + y(t),\\
-y'(t) = -y(t),\\
-x(0)=1,\; y(0)=1,
-\end{cases}
-\]
+$$ x'(t) = -x(t) + y(t),$$
 
-using RK4 and SDIRK solvers, and compares to the **analytical solution**:
+$$ y'(t) = -y(t), $$
 
-\[
-\begin{aligned}
-x(t)&=e^{-t}(1 + t),\\
-y(t)&=e^{-t}.
-\end{aligned}
-\]
+with $ x(0) = 1, y(0) = 1 $,
+
+using **RK4** and **SDIRK** solvers, and compares to the analytical solution:
+
+$$x(t) = e^-t  (1 + t),  $$
+$$y(t) = e^-t$$
+
+---
 
 ```python
 import numpy as np
