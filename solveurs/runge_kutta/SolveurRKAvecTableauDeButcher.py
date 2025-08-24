@@ -101,14 +101,14 @@ class SolveurRKAvecTableauDeButcher(object):
     def _testePasDeTemps(self):
         pass
 
-    def resoud(self, systeme_edo:EDOs, pas_de_temps: float, nb_pas_de_temps_max: int):
+    def resoud(self, systeme_d_edo:EDOs, step_size: float, max_number_of_time_steps: int):
         """
         Solves the ODE system by performing a series of time steps.
 
         Args:
             F (EDOs): The ODE system to solve.
-            pas_de_temps (float): The step size.
-            nb_pas_de_temps_max (int): The maximum number of steps.
+            step_size (float): The step size.
+            max_number_of_time_steps (int): The maximum number of steps.
             tn (float): The initial time.
             Un (np.ndarray): The initial state vector.
 
@@ -117,16 +117,16 @@ class SolveurRKAvecTableauDeButcher(object):
                 - temps (list): A list of the time points.
                 - solutions (list): A list of the solution vectors at each time point.
         """
-        temps = [systeme_edo.temps_initial]
-        solutions = [systeme_edo.condition_initiale]
+        temps = [systeme_d_edo.t_init]
+        solutions = [systeme_d_edo.initial_state]
         
-        U_courant = np.copy(systeme_edo.condition_initiale)
-        temps_courant = systeme_edo.temps_initial
+        U_courant = np.copy(systeme_d_edo.initial_state)
+        temps_courant = systeme_d_edo.t_init
         
-        for i in range(nb_pas_de_temps_max):
+        for i in range(max_number_of_time_steps):
             # on fait un pas de temps
             U_n_plus_1, _, newton_pas_content = self._effectueUnPasDeTempsRKAvecTableauDeButcher(
-                systeme_edo, temps_courant, pas_de_temps, U_courant
+                systeme_d_edo, temps_courant, step_size, U_courant
             )
             
             # Verifie la convergence de Newton
@@ -136,7 +136,7 @@ class SolveurRKAvecTableauDeButcher(object):
                 
             # Mise a jour de la solution courante et du temps courant
             U_courant = U_n_plus_1
-            temps_courant += pas_de_temps
+            temps_courant += step_size
             
             # On sauvegarde la solution du pas de temps dans le vecteur solution
             temps.append(temps_courant)
@@ -144,11 +144,11 @@ class SolveurRKAvecTableauDeButcher(object):
 
         return np.array(temps), np.array(solutions)
 
-    def solve(self, systeme_edo:EDOs, pas_de_temps: float, nb_pas_de_temps_max: int):
+    def solve(self, systeme_d_edo:EDOs, step_size: float, max_number_of_time_steps: int):
         """
         Alias de resoud().
         """
-        return self.resoud(systeme_edo, pas_de_temps, nb_pas_de_temps_max)
+        return self.resoud(systeme_d_edo, step_size, max_number_of_time_steps)
 
 
 

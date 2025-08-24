@@ -1,5 +1,12 @@
 # Numerical ODE Solver with Butcher Tableaus
 
+███████╗ ██████╗   ██████╗ 
+██╔════╝ ██╔═══██ ██╔═══██╗
+█████╗   ██║   ██ ██║   ██║
+██╔══╝   ██║   ██ ██║   ██║
+███████╗ ██████╔╝ ╚██████╔╝
+╚══════╝ ╚═════╝  ╚═════╝ 
+
 This repository contains a robust and flexible Python package for solving **ordinary differential equations (ODEs)**.  
 The solver is built to handle both **explicit and implicit Runge–Kutta methods** using a powerful **Butcher tableau** approach, and it includes a **numerical Jacobian** for convenience.
 
@@ -49,7 +56,7 @@ $$ x'(t) = -x(t) + y(t),$$
 $$ y'(t) = -y(t), $$
 with $$ x(0) = 1, y(0) = 1, $$
 
-using **RK4** and **SDIRK** solvers, and compares to the analytical solution:
+using **RK4** solver, and plot the solution:
 
 $$x(t) = e^{-t}  (1 + t),  $$
 $$y(t) = e^{-t}$$
