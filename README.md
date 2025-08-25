@@ -124,11 +124,11 @@ if __name__ == '__main__':
     solver_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'))
     times, solutions = solver_sdirk.solve(
         systeme,
-        step_size=0.01,
+        initial_step_size=0.01,
         adaptive_time_stepping=True,
-        target_relative_error=1e-10,
-        min_step_size=1e-8,
-        max_step_size=1e5
+        target_relative_error=1e-6,
+        min_step_size=1e-6,
+        max_step_size=1.0
     )
 
     # Compute analytical solution and errors
@@ -140,8 +140,8 @@ if __name__ == '__main__':
 
     ax1.plot(times, solutions[:, 0], 'b-', label='x(t) Numerical')
     ax1.plot(times, solutions[:, 1], 'r-', label='y(t) Numerical')
-    ax1.plot(times, analytical_solutions[:, 0], 'b--', label='x(t) Analytical')
-    ax1.plot(times, analytical_solutions[:, 1], 'r--', label='y(t) Analytical')
+    ax1.plot(times, analytical_solutions[:, 0], 'k--', label='x(t) Analytical')
+    ax1.plot(times, analytical_solutions[:, 1], 'r-.', label='y(t) Analytical')
     ax1.set_title("Coupled Linear System: Solutions")
     ax1.set_xlabel("Time")
     ax1.set_ylabel("Value")
@@ -161,4 +161,4 @@ if __name__ == '__main__':
 
 ```
 
-![Quick Example Output Figures](figures/quick_example.png)
+![Quick Example Output Figures](examples/figures/quick_example.png)
