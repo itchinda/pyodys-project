@@ -48,7 +48,7 @@ if __name__ == '__main__':
     step_size = 0.00000001
     solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_ordre3_predefini'))
     start=time.time()
-    t_sdirk, sol_sdirk = solveur_sdirk.solve(systeme, step_size, adaptive_time_stepping=True, target_relative_error=1e-10, min_step_size=1e-8, max_step_size=1e5)
+    t_sdirk, sol_sdirk = solveur_sdirk.solve(systeme, step_size, adaptive_time_stepping=True, target_relative_error=1e-10, min_step_size=1e-8, max_step_size=1e6)
     elapsed=time.time()-start
     print(f"Python EDOs runtime: {elapsed:.4f} seconds")
     # Create a single figure with two subplots

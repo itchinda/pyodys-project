@@ -1,7 +1,18 @@
 from systemes.EDOs import EDOs
 from .TableauDeButcher import TableauDeButcher
 import numpy as np 
-from scipy.linalg import lu, inv
+from scipy.linalg import lu_factor, lu_solve
+
+def wrms_norm(delta, u, atol=1e-12, rtol=1e-6):
+    """
+    Weighted Root Mean Square norm.
+    delta : vector of Newton update
+    u : current Newton iterate
+    atol : absolute tolerance
+    rtol : relative tolerance
+    """
+    scale = atol + rtol * np.abs(u)
+    return np.sqrt(np.mean((delta / scale)**2))
 
 class SolveurRKAvecTableauDeButcher(object):
     def __init__(self, tableau_de_butcher=TableauDeButcher.par_nom('rk4') ):
@@ -62,24 +73,36 @@ class SolveurRKAvecTableauDeButcher(object):
                 delta_t_x_akk = delta_t * a[k, k]
                 U_newton = np.copy(U_chap_k)
 
-                J = F.jacobien(tn_k, U_newton)
-                A = I - delta_t_x_akk * J
+                success = False
+                for refresh in range(2):
+                    J = F.jacobien(tn_k, U_newton)
+                    A = I - delta_t_x_akk * J
 
-                for iteration_newton in range(max_iteration_newton):
-                    residu = U_newton - (U_chap_k + delta_t_x_akk * F.evalue(tn_k, U_newton))
-
-                    # On resoud A * delta = residu
                     try:
-                        delta = np.linalg.solve(A, residu)
-                    except np.linalg.LinAlgError:
+                        LU_piv = lu_factor(A)                     # LU factorization once
+                    except Exception:
                         newton_not_happy = True
                         return U_n, U_pred, newton_not_happy
-                    # Mettre a jour U_newton
-                    U_newton = U_newton - delta
 
-                    # verifie la convergence
-                    convergence = (np.linalg.norm(delta) <= abs_tolerance) and (np.linalg.norm(delta / (U_newton + 1e-12)) <= rel_tolerance)
-                    if convergence and iteration_newton >= min_iteration_newton:
+                    for iteration_newton in range(max_iteration_newton):
+                        residu = U_newton - (U_chap_k + delta_t_x_akk * F.evalue(tn_k, U_newton))
+
+                        try:
+                            delta = lu_solve(LU_piv, residu)
+                        except:
+                            newton_not_happy = True
+                            return U_n, U_pred, newton_not_happy
+                        U_newton -= delta
+                        # verifie la convergence
+
+                        #convergence = wrms_norm(delta, U_newton, abs_tolerance, rel_tolerance) < 1.0
+                        #convergence = (np.linalg.norm(delta) <= abs_tolerance) and (np.linalg.norm(delta / (U_newton + 1e-12)) <= rel_tolerance)
+                        scaled_error = np.abs(delta) / (abs_tolerance + np.abs(U_newton) * rel_tolerance)
+                        convergence = np.linalg.norm(scaled_error, ord=np.inf) <= 1.0
+                        if convergence and iteration_newton >= min_iteration_newton:
+                            success=True
+                            break
+                    if success:
                         break
                 else:
                     newton_not_happy = True
@@ -168,7 +191,7 @@ class SolveurRKAvecTableauDeButcher(object):
 
             else:
                 # Step rejected: retry with the new, smaller step size
-                print(f"Time step rejected at t = {temps_courant:.4f}. Retrying with step size: {new_step_size:.4e}")
+                print(f"Time step {step_size} rejected at t = {temps_courant:.4f}. Retrying with step size: {new_step_size:.4e}")
                 step_size = new_step_size
 
         print(f"The total number of time steps required to reach t_final = {t_final} is {number_of_time_steps}.")

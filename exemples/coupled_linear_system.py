@@ -63,7 +63,7 @@ if __name__=='__main__':
     
     plt.tight_layout()
     
-    #plt.savefig("figures/quick_example.png")
+    plt.savefig("figures/quick_example.png")
     
     plt.show()
     
