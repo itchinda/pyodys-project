@@ -22,7 +22,7 @@ class SolveurRKAvecTableauDeButcher(object):
             tuple: A tuple contenant:
                 Un (np.ndarray): le vecteur solution au temps t(n+1).
                 U_pred (np.ndarray): The predicted state vector.
-                newton_pas_content (bool): Flag indiquant si Newton a converge ou pas.
+                newton_not_happy (bool): Flag indiquant si Newton a converge ou pas.
         """
         nombre_de_niveaux = self.tableau_de_butcher.A.shape[1]
         nombre_d_equations = len(U_np)
@@ -31,14 +31,14 @@ class SolveurRKAvecTableauDeButcher(object):
         c = self.tableau_de_butcher.C
         d = np.zeros_like(a[0,:])
 
-        avec_prediction = self.tableau_de_butcher.B.shape[0] == 2
+        avec_prediction = self.tableau_de_butcher.est_avec_prediction
         if avec_prediction:
             b = self.tableau_de_butcher.B[0, :]
             d = self.tableau_de_butcher.B[1, :]
         else:
             b = self.tableau_de_butcher.B
 
-        newton_pas_content = False
+        newton_not_happy = False
         U_chap = np.zeros((nombre_d_equations, nombre_de_niveaux))
         valeur_f = np.zeros((nombre_d_equations, nombre_de_niveaux))
 
@@ -72,8 +72,8 @@ class SolveurRKAvecTableauDeButcher(object):
                     try:
                         delta = np.linalg.solve(A, residu)
                     except np.linalg.LinAlgError:
-                        newton_pas_content = True
-                        return U_n, U_pred, newton_pas_content
+                        newton_not_happy = True
+                        return U_n, U_pred, newton_not_happy
                     # Mettre a jour U_newton
                     U_newton = U_newton - delta
 
@@ -82,8 +82,8 @@ class SolveurRKAvecTableauDeButcher(object):
                     if convergence and iteration_newton >= min_iteration_newton:
                         break
                 else:
-                    newton_pas_content = True
-                    return U_n, U_pred, newton_pas_content
+                    newton_not_happy = True
+                    return U_n, U_pred, newton_not_happy
 
                 U_chap[:, k] = U_newton
             else:
@@ -96,12 +96,9 @@ class SolveurRKAvecTableauDeButcher(object):
             if avec_prediction:
                 U_pred += d[k] * valeur_f[:, k]
 
-        return U_n, U_pred, newton_pas_content
+        return U_n, U_pred, newton_not_happy
 
-    def _testePasDeTemps(self):
-        pass
-
-    def resoud(self, systeme_d_edo:EDOs, step_size: float, max_number_of_time_steps: int):
+    def resoud(self, systeme_EDOs:EDOs, initial_step_size: float, adaptive_time_stepping : bool = False, target_relative_error : float = 1.0e-5, min_step_size :float = 1.0e-8, max_step_size :float = 100.0):
         """
         Solves the ODE system by performing a series of time steps.
 
@@ -117,21 +114,132 @@ class SolveurRKAvecTableauDeButcher(object):
                 - temps (list): A list of the time points.
                 - solutions (list): A list of the solution vectors at each time point.
         """
-        temps = [systeme_d_edo.t_init]
-        solutions = [systeme_d_edo.initial_state]
+        if (not self.tableau_de_butcher.est_avec_prediction) and (adaptive_time_stepping):
+            print('Warning: The selected solver does not support adaptive time stepping. Using fixed time steps instead. ⚠️')
+            adaptive_time_stepping = False
         
-        U_courant = np.copy(systeme_d_edo.initial_state)
-        temps_courant = systeme_d_edo.t_init
+        if not adaptive_time_stepping:
+            return self._resoud_pas_de_temps_fixe(systeme_EDOs, initial_step_size)
         
+        temps = [systeme_EDOs.t_init]
+        solutions = [systeme_EDOs.initial_state]
+        
+        U_courant = np.copy(systeme_EDOs.initial_state)
+        temps_courant = systeme_EDOs.t_init
+        t_init = systeme_EDOs.t_init
+        t_final = systeme_EDOs.t_final
+        step_size = initial_step_size
+        order = self.tableau_de_butcher.ordre
+
+        number_of_time_steps = 0
+        newton_failure_count = 0  # Counter for consecutive Newton failures
+        max_newton_failures = 10  # Maximum number of failures before stopping
+
+        while temps_courant < t_final:
+            U_n_plus_1, U_pred, newton_not_happy = self._effectueUnPasDeTempsRKAvecTableauDeButcher(
+                systeme_EDOs, temps_courant, step_size, U_courant
+            )
+
+            if newton_not_happy:
+                newton_failure_count += 1
+                print(f"Newton failed at time t = {temps_courant:.4f}. Reducing step size and retrying. Failure count: {newton_failure_count}")
+                step_size = step_size / 2.0  # Reduce step size
+                if newton_failure_count >= max_newton_failures:
+                    print(f"Maximum consecutive Newton failures ({max_newton_failures}) reached. Stopping the simulation.")
+                    break
+                continue  # Skip the rest of the loop and retry the same time step
+
+            # Reset failure counter on success
+            newton_failure_count = 0
+
+            # Validate the step
+            new_step_size, step_accepted = self._validePasDeTemps(U_n_plus_1, U_pred, step_size, target_relative_error, order, min_step_size, max_step_size, temps_courant, t_final)
+
+            if step_accepted:
+                # Step accepted: move to next time step
+                U_courant = U_n_plus_1
+                temps_courant += step_size
+                temps.append(temps_courant)
+                solutions.append(U_courant)
+                step_size = new_step_size # Update step size for next iteration
+                number_of_time_steps += 1
+                if number_of_time_steps % 100 == 0:
+                    print(f"Time step #{number_of_time_steps} completed. Current time: {temps_courant:.4f}")
+
+            else:
+                # Step rejected: retry with the new, smaller step size
+                print(f"Time step rejected at t = {temps_courant:.4f}. Retrying with step size: {new_step_size:.4e}")
+                step_size = new_step_size
+
+        print(f"The total number of time steps required to reach t_final = {t_final} is {number_of_time_steps}.")
+        return np.array(temps), np.array(solutions)
+
+    
+    
+    def _validePasDeTemps(self, U_approx, U_pred, step_size, target_relative_error, order, min_step_size, max_step_size, temps_courant, t_final):
+        alpha = 0.1
+        beta = 0.8  # safety factor
+        
+        relative_error = np.linalg.norm(U_approx - U_pred, 2.0) / (np.linalg.norm(U_pred, 2.0) + 1.0e-12)
+        
+        # Calculate the new step size regardless of acceptance
+        new_step_size = beta * step_size * (target_relative_error / relative_error)**(1.0 / order)
+
+        # Determine if the step is accepted
+        step_accepted = relative_error < (1 + alpha) * target_relative_error
+        
+        # Check for minimum and maximum step sizes
+        if new_step_size < min_step_size:
+            print(f'Warning! The computed step size {new_step_size:.4e} is less than the actual min step size: {min_step_size:.4e}. Using min step size.')
+            new_step_size = min_step_size
+        elif new_step_size > max_step_size:
+            print(f'Warning! The computed step size {new_step_size:.4e} is greater than the actual max step size: {max_step_size:.4e}. Using max step size.')
+            new_step_size = max_step_size
+        
+        # Final check to prevent overshooting the final time
+        # This uses the OLD step_size to calculate the time for the next step.
+        temps_apres_pas_courant = temps_courant + step_size
+        
+        if temps_apres_pas_courant + new_step_size > t_final:
+            new_step_size = t_final - temps_apres_pas_courant
+            # If the remaining time is zero or negative, the simulation is finished
+            if new_step_size <= 0:
+                step_accepted = True
+                new_step_size = 0.0 # Make sure the next step is zero
+
+        return new_step_size, step_accepted 
+
+    def _resoud_pas_de_temps_fixe(self, systeme_EDOs:EDOs, step_size):
+        """
+        Solves the ODE system by performing a series of time steps.
+
+        Args:
+            systeme_EDOs (EDOs): The ODE system to solve.
+            step_size (float): The step size.
+
+        Returns:
+            tuple: A tuple containing lists of the solution times and state vectors.
+                - temps (list): A list of the time points.
+                - solutions (list): A list of the solution vectors at each time point.
+        """
+
+        temps = [systeme_EDOs.t_init]
+        solutions = [systeme_EDOs.initial_state]
+        
+        U_courant = np.copy(systeme_EDOs.initial_state)
+        temps_courant = systeme_EDOs.t_init
+        
+        max_number_of_time_steps = int ((systeme_EDOs.t_final - systeme_EDOs.t_init) / step_size)
+
         for i in range(max_number_of_time_steps):
             # on fait un pas de temps
-            U_n_plus_1, _, newton_pas_content = self._effectueUnPasDeTempsRKAvecTableauDeButcher(
-                systeme_d_edo, temps_courant, step_size, U_courant
+            U_n_plus_1, _, newton_not_happy = self._effectueUnPasDeTempsRKAvecTableauDeButcher(
+                systeme_EDOs, temps_courant, step_size, U_courant
             )
             
             # Verifie la convergence de Newton
-            if newton_pas_content:
-                print(f"L'algorithme de Newton a echoue a converger au pas de tempa {i+1}. Arret de la simulation.")
+            if newton_not_happy:
+                print(f"L'algorithme de Newton a echoue a converger au pas de temps {i+1}. Arret de la simulation.")
                 break
                 
             # Mise a jour de la solution courante et du temps courant
@@ -143,12 +251,12 @@ class SolveurRKAvecTableauDeButcher(object):
             solutions.append(U_courant)
 
         return np.array(temps), np.array(solutions)
-
-    def solve(self, systeme_d_edo:EDOs, step_size: float, max_number_of_time_steps: int):
+    
+    def solve(self, systeme_EDOs:EDOs, initial_step_size: float, adaptive_time_stepping : bool = False, target_relative_error : float = 1.0e-5, min_step_size :float = 1.0e-8, max_step_size :float = 100.0):
         """
         Alias de resoud().
         """
-        return self.resoud(systeme_d_edo, step_size, max_number_of_time_steps)
+        return self.resoud(systeme_EDOs, initial_step_size, adaptive_time_stepping, target_relative_error, min_step_size, max_step_size)
 
 
 

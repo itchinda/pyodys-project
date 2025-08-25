@@ -32,7 +32,7 @@ if __name__=='__main__':
     time_step = 0.01
     max_number_of_time_steps = 1000
     solveur_rk4 = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('rk4'))
-    t_rk4, sol_rk4 = solveur_rk4.solve(systeme, time_step, max_number_of_time_steps)
+    t_rk4, sol_rk4 = solveur_rk4.solve(systeme, time_step)
     
     # Compute analytical solution
     sol_ana = np.array([solution_analytique(ti, t0, u0) for ti in t_rk4])

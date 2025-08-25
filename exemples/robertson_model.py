@@ -40,16 +40,15 @@ class RobertsonModel(EDOs):
 if __name__ == '__main__':
     # Initial conditions
     t0 = 0.0
-    tf = 1.0e2
+    tf = 1.0e7
     u0 = [1.0, 0.0, 0.0]
     systeme = RobertsonModel(t0, tf, u0)
 
-    # RK4 solver
-    time_step = 0.0001
-    max_number_of_time_steps = int((tf - t0) / time_step)
-    solveur_rk4 = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('rk4'))
+    # sdirk solver
+    step_size = 0.00000001
+    solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_ordre3_predefini'))
     start=time.time()
-    t_rk4, sol_rk4 = solveur_rk4.solve(systeme, time_step, max_number_of_time_steps)
+    t_sdirk, sol_sdirk = solveur_sdirk.solve(systeme, step_size, adaptive_time_stepping=True, target_relative_error=1e-10, min_step_size=1e-8, max_step_size=1e5)
     elapsed=time.time()-start
     print(f"Python EDOs runtime: {elapsed:.4f} seconds")
     # Create a single figure with two subplots
@@ -57,9 +56,9 @@ if __name__ == '__main__':
     
     # 1. First subplot: Time series plot
     ax1 = fig.add_subplot(1, 2, 1)
-    ax1.semilogx(t_rk4, sol_rk4[:,0], 'b.-', markersize=2, label='x(t) RK4')
-    ax1.semilogx(t_rk4, 1e4*sol_rk4[:,1], 'r-', markersize=2, label='10^4 y(t) RK4')
-    ax1.semilogx(t_rk4, sol_rk4[:,2], 'm-', markersize=2, label='z(t) RK4')
+    ax1.semilogx(t_sdirk, sol_sdirk[:,0], 'b.-', markersize=2, label='x(t) sdirk')
+    ax1.semilogx(t_sdirk, 1e4*sol_sdirk[:,1], 'r-', markersize=2, label='10^4 y(t) sdirk')
+    ax1.semilogx(t_sdirk, sol_sdirk[:,2], 'm-', markersize=2, label='z(t) sdirk')
     ax1.set_title("Robertson Model: Solutions")
     ax1.set_xlabel("Time")
     ax1.set_ylabel("Value")

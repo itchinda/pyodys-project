@@ -75,7 +75,7 @@ def _get_cooper_verner_data():
     }
 
 def _get_sdirk_ordre3_predefini_data():
-    """Returns the data for the classical RK4 scheme."""
+    """Returns the data for the SDIRK scheme."""
     alpha = 5/6
     A = [
         [alpha, 0, 0, 0],

@@ -61,6 +61,12 @@ class TableauDeButcher(object):
     @property
     def nombre_de_niveaux(self):
         return self.A.shape[0]
+    
+    @property
+    def est_avec_prediction(self):
+        return self.B.ndim == 2 and self.B.shape[0] == 2
+        
+
 
     @property
     def est_explicite(self):

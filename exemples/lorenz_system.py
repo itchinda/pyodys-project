@@ -44,10 +44,10 @@ if __name__ == '__main__':
     systeme = LorenzSystem(t0, tf, u0)
 
     # RK4 solver
-    time_step = 0.001
-    max_number_of_time_steps = int((tf - t0) / time_step)
-    solveur_rk4 = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('rk4'))
-    t_rk4, sol_rk4 = solveur_rk4.solve(systeme, time_step, max_number_of_time_steps)
+    step_size = 0.001
+    solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_ordre3_predefini'))
+
+    t_rk4, sol_rk4 = solveur_sdirk.solve(systeme, step_size, adaptive_time_stepping=True, target_relative_error=1e-10, min_step_size=1e-8, max_step_size=1e5)
 
     # Create a single figure with two subplots
     fig = plt.figure(figsize=(14, 6)) # Adjust figure size to accommodate two plots side-by-side
