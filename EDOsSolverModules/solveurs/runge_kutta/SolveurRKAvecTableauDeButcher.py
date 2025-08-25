@@ -1,4 +1,4 @@
-from systemes.EDOs import EDOs
+from ...systemes.EDOs import EDOs
 from .TableauDeButcher import TableauDeButcher
 import numpy as np 
 from scipy.linalg import lu_factor, lu_solve
@@ -166,7 +166,7 @@ class SolveurRKAvecTableauDeButcher(object):
             if newton_not_happy:
                 newton_failure_count += 1
                 print(f"Newton failed at time t = {temps_courant:.4f}. Reducing step size and retrying. Failure count: {newton_failure_count}")
-                step_size = step_size / 2.0  # Reduce step size
+                step_size = np.maximum(step_size / 2.0, min_step_size)  # Reduce step size
                 if newton_failure_count >= max_newton_failures:
                     print(f"Maximum consecutive Newton failures ({max_newton_failures}) reached. Stopping the simulation.")
                     break
@@ -202,11 +202,11 @@ class SolveurRKAvecTableauDeButcher(object):
     def _validePasDeTemps(self, U_approx, U_pred, step_size, target_relative_error, order, min_step_size, max_step_size, temps_courant, t_final):
         alpha = 0.1
         beta = 0.8  # safety factor
-        
-        relative_error = np.linalg.norm(U_approx - U_pred, 2.0) / (np.linalg.norm(U_pred, 2.0) + 1.0e-12)
+        eps = 1e-15
+        relative_error = np.linalg.norm(U_approx - U_pred, 2.0) / (np.linalg.norm(U_pred, 2.0) + eps)
         
         # Calculate the new step size regardless of acceptance
-        new_step_size = beta * step_size * (target_relative_error / relative_error)**(1.0 / order)
+        new_step_size = beta * step_size * (target_relative_error / (relative_error + eps))**(1.0 / order)
 
         # Determine if the step is accepted
         step_accepted = relative_error < (1 + alpha) * target_relative_error

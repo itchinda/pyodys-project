@@ -1,11 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from systemes.EDOs import EDOs
-from solveurs.runge_kutta.TableauDeButcher import TableauDeButcher
-from solveurs.runge_kutta.SolveurRKAvecTableauDeButcher import SolveurRKAvecTableauDeButcher
+from EDOsSolverModules import EDOs
+from EDOsSolverModules import TableauDeButcher
+from EDOsSolverModules import SolveurRKAvecTableauDeButcher
 
-# Define Lorenz System
+# Define Robertson System
 class RobertsonModel(EDOs):
     def __init__(self, t_init, t_final, initial_state, k1=0.04, k2=3.0e7, k3=1.0e4):
         # Call the parent constructor
@@ -45,8 +45,8 @@ if __name__ == '__main__':
     systeme = RobertsonModel(t0, tf, u0)
 
     # sdirk solver
-    step_size = 0.00000001
-    solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_ordre3_predefini'))
+    step_size = 1e-4
+    solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk21_crouzeix_raviart'))
     start=time.time()
     t_sdirk, sol_sdirk = solveur_sdirk.solve(systeme, step_size, adaptive_time_stepping=True, target_relative_error=1e-10, min_step_size=1e-8, max_step_size=1e6)
     elapsed=time.time()-start

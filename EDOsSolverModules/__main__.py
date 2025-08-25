@@ -7,7 +7,8 @@ Run with: python -m edo
 
 import sys
 import shutil
-
+import argparse
+from EDOsSolverModules import TableauDeButcher
 # ANSI color codes
 RED = "\033[31m"
 GREEN = "\033[32m"
@@ -23,8 +24,25 @@ def center_lines(text):
     centered_lines = [line.strip().center(terminal_width) for line in text.split('\n')]
     return '\n'.join(centered_lines)
 
+def print_available_schemes():
+    """
+    Prints a list of all available Runge-Kutta schemes.
+    """
+    print("Available Runge-Kutta schemes:")
+    for name in sorted(TableauDeButcher.SCHEMAS_DISPONIBLES):
+        print(f"- {name}")
 
 def main():
+    parser = argparse.ArgumentParser(description="Solve ODEs using various Runge-Kutta methods.")
+    parser.add_argument('--list-schemes', action='store_true', help="List all available Runge-Kutta schemes.")
+    #parser.add_argument('--help', action='store_true', help="List all available Runge-Kutta schemes.")
+    
+    args = parser.parse_args()
+    
+    if args.list_schemes or args.help:
+        print_available_schemes()
+        return
+
     banner = f"""
         {RED}███████╗{GREEN}██████╗   {YELLOW}██████╗
         {RED}██╔════╝{GREEN}██╔═══██ {YELLOW}██╔═══██╗
@@ -50,6 +68,11 @@ def main():
     print("  python -m edo.exemples.coupled_linear_system")
     print("  python -m edo.exemples.lorenz_system")
     print(f"\n{BLUE}Enjoy solving EDOs! {RESET}")
+
+    
+    
+
+
 
 if __name__ == "__main__":
     sys.exit(main())

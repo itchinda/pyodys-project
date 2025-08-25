@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from systemes.EDOs import EDOs
-from solveurs.runge_kutta.TableauDeButcher import TableauDeButcher
-from solveurs.runge_kutta.SolveurRKAvecTableauDeButcher import SolveurRKAvecTableauDeButcher
+from EDOs_solver import EDOs
+from EDOs_solver import TableauDeButcher
+from EDOs_solver import SolveurRKAvecTableauDeButcher
 
 # Define coupled linear system
 class SystemeCouple(EDOs):

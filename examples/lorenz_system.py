@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from systemes.EDOs import EDOs
-from solveurs.runge_kutta.TableauDeButcher import TableauDeButcher
-from solveurs.runge_kutta.SolveurRKAvecTableauDeButcher import SolveurRKAvecTableauDeButcher
+from EDOsSolverModules import EDOs
+from EDOsSolverModules import TableauDeButcher
+from EDOsSolverModules import SolveurRKAvecTableauDeButcher
 
 # Define Lorenz System
 class LorenzSystem(EDOs):
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     # RK4 solver
     step_size = 0.001
-    solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_ordre3_predefini'))
+    solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'))
 
     t_rk4, sol_rk4 = solveur_sdirk.solve(systeme, step_size, adaptive_time_stepping=True, target_relative_error=1e-10, min_step_size=1e-8, max_step_size=1e5)
 

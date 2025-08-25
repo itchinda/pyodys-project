@@ -1,13 +1,13 @@
 import numpy as np
 import json
 import os
-from solveurs.runge_kutta.available_butcher_table_data_to_json import available_butcher_table_data_to_json
+from .butcher_tableaus_data.available_butcher_table_data_to_json import available_butcher_table_data_to_json
 
 # Creation du fichier JSON pour les schemas disponibles
 available_butcher_table_data_to_json()
 
 # On importe ensuite les donnees du fichier JSON
-file_path = os.path.join(os.path.dirname(__file__), 'tableaux_de_butcher_disponibles.json')
+file_path = os.path.join(os.path.dirname(__file__), 'butcher_tableaus_data/tableaux_de_butcher_disponibles.json')
 with open(file_path, 'r') as f:
     _SCHEMAS_DATA = json.load(f)
 
