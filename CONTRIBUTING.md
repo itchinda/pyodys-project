@@ -8,7 +8,7 @@ By participating in this project, you agree to abide by its Code of Conduct.
 
 ### 1. Reporting Bugs
 
-If you find a bug, please open a new issue on the [GitHub issues page](https://github.com/your-username/your-repo-name/issues). When submitting a bug report, please provide:
+If you find a bug, please open a new issue on the [GitHub issues page](https://github.com/itchinda/edo/issues). When submitting a bug report, please provide:
 * A clear and concise description of the bug.
 * The steps to reproduce the behavior.
 * The expected behavior.
@@ -65,4 +65,4 @@ git push origin your-branch-name
 Open a pull request from your new branch to the main branch of the original repository. In the pull request description, please reference any related issues and provide a summary of your changes.
 
 #### 4. Code of Conduct
-Please review and adhere to the project's Code of Conduct. We are committed to fostering a welcoming and inclusive community.
+Please review and adhere to the project's [Code of Conduct](https://github.com/itchinda/edo/blob/main/CODE_OF_CONDUCT.md). We are committed to fostering a welcoming and inclusive community.
