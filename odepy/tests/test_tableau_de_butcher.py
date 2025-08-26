@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from pyode import TableauDeButcher
+from odepy import TableauDeButcher
 
 # --- Cas de test 1: Données valides ---
 class TestTableauDeButcher:
