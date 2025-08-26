@@ -1,9 +1,9 @@
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from odepy import EDOs
-from odepy import TableauDeButcher
-from odepy import SolveurRKAvecTableauDeButcher
+from pyodys import EDOs
+from pyodys import TableauDeButcher
+from pyodys import SolveurRKAvecTableauDeButcher
 
 # Define Lorenz System
 class LorenzSystem(EDOs):

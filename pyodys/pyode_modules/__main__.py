@@ -8,7 +8,7 @@ Run with: python -m edo
 import sys
 import shutil
 import argparse
-from odepy import TableauDeButcher
+from pyodys import TableauDeButcher
 # ANSI color codes
 RED = "\033[31m"
 GREEN = "\033[32m"

@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Using the top-level imports from the installed package
-from odepy import EDOs
-from odepy import TableauDeButcher
-from odepy import SolveurRKAvecTableauDeButcher
+from pyodys import EDOs
+from pyodys import TableauDeButcher
+from pyodys import SolveurRKAvecTableauDeButcher
 
 # Define coupled linear system
 class SystemeCouple(EDOs):

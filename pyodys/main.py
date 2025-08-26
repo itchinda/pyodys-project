@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from odepy_modules.__main__ import main
+from pyodys_modules.__main__ import main
 
 if __name__ == "__main__":
     main()
