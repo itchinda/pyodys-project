@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from EDOsSolverModules import SolveurRKAvecTableauDeButcher
-from EDOsSolverModules import TableauDeButcher
-from EDOsSolverModules import EDOs
+from pyode import SolveurRKAvecTableauDeButcher
+from pyode import TableauDeButcher
+from pyode import EDOs
 
 # To execute the tests, run python -m pytest -v, from the working directory edo/
 

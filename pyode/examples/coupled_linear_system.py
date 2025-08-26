@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Using the top-level imports from the installed package
-from EDOsSolverModules import EDOs
-from EDOsSolverModules import TableauDeButcher
-from EDOsSolverModules import SolveurRKAvecTableauDeButcher
+from pyode import EDOs
+from pyode import TableauDeButcher
+from pyode import SolveurRKAvecTableauDeButcher
 
 # Define coupled linear system
 class SystemeCouple(EDOs):
@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     
-    plt.savefig("examples/figures/quick_example.png")
+    plt.savefig("results.png")
     
     plt.show()
     

@@ -1,14 +1,13 @@
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from EDOsSolverModules import EDOs
-from EDOsSolverModules import TableauDeButcher
-from EDOsSolverModules import SolveurRKAvecTableauDeButcher
+from pyode import EDOs
+from pyode import TableauDeButcher
+from pyode import SolveurRKAvecTableauDeButcher
 
 # Define Lorenz System
 class LorenzSystem(EDOs):
     def __init__(self, t_init, t_final, initial_state, sigma=10, rho=28, beta=2.667):
-        # Call the parent constructor
         super().__init__(t_init, t_final, initial_state)
         # Specific Lorenz System Parameters
         self.sigma = sigma
@@ -16,15 +15,10 @@ class LorenzSystem(EDOs):
         self.beta = beta
         
     def evalue(self, t, u):
-        # u, state at time t: u = [x, y, z]
         x, y, z = u
-        
-        # Define the derivatives dx/dt, dy/dt, dz/dt
         dxdt = self.sigma * (y - x)
         dydt = x * (self.rho - z) - y
         dzdt = x * y - self.beta * z
-        
-        # Returns the derivatives in a Numpy Array
         return np.array([dxdt, dydt, dzdt])
     
     def jacobien(self, t, u):
@@ -68,7 +62,10 @@ if __name__ == '__main__':
                         type=float,
                         default=1.0,
                         help='The maximum time step size for adaptive stepping.')
-    
+    parser.add_argument('--save-csv', 
+                        action='store_true', 
+                        help='Save the results to a CSV file.')
+
     args = parser.parse_args()
 
     # Initial conditions
@@ -82,7 +79,7 @@ if __name__ == '__main__':
     # solver
     solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name(args.method))
 
-    time, solution = solver.solve(
+    times, solutions = solver.solve(
         systeme_EDOs=systeme, 
         initial_step_size=args.step_size, 
         adaptive_time_stepping=args.adaptive_stepping,
@@ -91,23 +88,28 @@ if __name__ == '__main__':
         max_step_size=args.max_step_size
         )
 
-    # Create a single figure with two subplots
-    fig = plt.figure(figsize=(14, 6)) # Adjust figure size to accommodate two plots side-by-side
-    
+    if args.save_csv:
+        print("Saving data to CSV...")
+        results = np.column_stack((times, solutions))
+        header = "time,x(t),y(t),z(t)"
+        np.savetxt('lorenz_system.csv', results, delimiter=',', header=header, comments='')
+        print("Data saved to lorenz_system.csv")
+
+    fig = plt.figure(figsize=(14, 6))
     # 1. First subplot: Time series plot
     ax1 = fig.add_subplot(1, 2, 1)
-    ax1.plot(time, solution[:,0], 'b.-', markersize=2, label='x(t)')
-    ax1.plot(time, solution[:,1], 'r-', markersize=2, label='y(t)')
-    ax1.plot(time, solution[:,2], 'm-', markersize=2, label='z(t)')
+    ax1.plot(times, solutions[:,0], 'b.-', markersize=2, label='x(t)')
+    ax1.plot(times, solutions[:,1], 'r-', markersize=2, label='y(t)')
+    ax1.plot(times, solutions[:,2], 'm-', markersize=2, label='z(t)')
     ax1.set_title("Lorenz System: Solutions")
     ax1.set_xlabel("Time")
     ax1.set_ylabel("Value")
     ax1.legend()
     ax1.grid(True)
     
-    # 2. Second subplot: 3D attractor plot
+    # 2. Second subplot: 3D Lorenz attractor plot
     ax2 = fig.add_subplot(1, 2, 2, projection='3d')
-    ax2.plot(solution[:, 0], solution[:, 1], solution[:, 2], lw=0.5)
+    ax2.plot(solutions[:, 0], solutions[:, 1], solutions[:, 2], lw=0.5)
     ax2.set_xlabel("X Axis")
     ax2.set_ylabel("Y Axis")
     ax2.set_zlabel("Z Axis")

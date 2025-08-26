@@ -1,10 +1,11 @@
+import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from EDOsSolverModules import EDOs
-from EDOsSolverModules import TableauDeButcher
-from EDOsSolverModules import SolveurRKAvecTableauDeButcher
+from pyode import EDOs
+from pyode import TableauDeButcher
+from pyode import SolveurRKAvecTableauDeButcher
 
 # Define Robertson System
 class RobertsonModel(EDOs):
@@ -37,9 +38,7 @@ class RobertsonModel(EDOs):
         ])
         return Jacobien
 
-
-if __name__ == '__main__':
-
+def extract_args():
     parser = argparse.ArgumentParser(description="Solve the Robertson System.")
     parser.add_argument('--method', '-m', 
                         type=str, 
@@ -69,8 +68,18 @@ if __name__ == '__main__':
                         type=float,
                         default=1e4,
                         help='The maximum time step size for adaptive stepping.')
+    parser.add_argument('--save-csv', 
+                        action='store_true', 
+                        help='Save the results to a CSV file.')
+    parser.add_argument('--save-png', 
+                        action='store_true', 
+                        help='Save the results to a png file.')
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
     
-    args = parser.parse_args()
+    args = extract_args()
 
     # Initial conditions
     t0 = 0.0
@@ -78,13 +87,9 @@ if __name__ == '__main__':
     u0 = [1.0, 0.0, 0.0]
     system = RobertsonModel(t0, tf, u0)
 
-    # sdirk solver
-    step_size = args.step_size
+    # solver
     method = args.method
-
-    # define the solver
     solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name(method))
-
 
     # Solve the system
     start=time.time()
@@ -99,10 +104,31 @@ if __name__ == '__main__':
     elapsed=time.time()-start
     print(f"Python EDOs runtime: {elapsed:.4f} seconds")
     
-    # Create a single figure with two subplots
-    fig = plt.figure(figsize=(7, 6)) # Adjust figure size to accommodate two plots side-by-side
+    if args.save_csv or args.save_png:
+        output_directory = "robertson_model_results"
+        try:
+            os.mkdir(output_directory)
+            print(f"Directory {output_directory} created successfully.")
+        except FileExistsError:
+            print(f"Directory {output_directory} already exists.")
+        except FileNotFoundError:
+            print("The parent directory does not exist.")
+            os.makedirs(output_directory, exist_ok=True)
+
+    if args.save_csv:
+        print("Saving data to CSV...")
+        filename = "robertson_model.csv"
+        full_result_path = os.path.join(output_directory, filename)
+        results_to_save = np.column_stack((times, solutions))
+        header = "time,x(t),y(t),z(t)"
+        np.savetxt(full_result_path, 
+                   results_to_save, 
+                   delimiter=',', 
+                   header=header, 
+                   comments='')
+        print(f"CSV saved successfully at: {os.path.abspath(full_result_path)}")
     
-    # 1. First subplot: Time series plot
+    fig = plt.figure(figsize=(7, 6))
     ax1 = fig.add_subplot(1, 1, 1)
     ax1.semilogx(times, solutions[:,0], 'b.-', markersize=2, label='x(t)')
     ax1.semilogx(times, 1e4*solutions[:,1], 'r-', markersize=2, label='10^4 y(t)')
@@ -112,7 +138,13 @@ if __name__ == '__main__':
     ax1.set_ylabel("Value")
     ax1.legend()
     ax1.grid(True)
-    
-    
+
+    if args.save_png:
+        print("Saving to PNG...")
+        filename = "robertson_model.png"
+        full_result_path = os.path.join(output_directory, filename)
+        plt.savefig(full_result_path)
+        print(f"PNG saved successfully at: {os.path.abspath(full_result_path)}")
+
     plt.tight_layout()
     plt.show()

@@ -8,7 +8,7 @@ Run with: python -m edo
 import sys
 import shutil
 import argparse
-from EDOsSolverModules import TableauDeButcher
+from pyode_modules import TableauDeButcher
 # ANSI color codes
 RED = "\033[31m"
 GREEN = "\033[32m"
