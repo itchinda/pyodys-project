@@ -1,3 +1,0 @@
-from .odepy_modules.solveurs.runge_kutta.TableauDeButcher import TableauDeButcher
-from .odepy_modules.solveurs.runge_kutta.SolveurRKAvecTableauDeButcher import SolveurRKAvecTableauDeButcher
-from .odepy_modules.systemes.EDOs import EDOs 
