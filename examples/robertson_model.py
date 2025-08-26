@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -38,27 +39,74 @@ class RobertsonModel(EDOs):
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Solve the Robertson System.")
+    parser.add_argument('--method', '-m', 
+                        type=str, 
+                        default='sdirk_norsett_thomson_34',
+                        help='The Runge-Kutta method to use.')
+    parser.add_argument('--step-size', '-s', 
+                        type=float, 
+                        default=1e-4,
+                        help='The initial time step size.')
+    parser.add_argument('--final-time', '-t', 
+                        type=float, 
+                        default=1.0,
+                        help='The final time for the simulation.')
+    parser.add_argument('--tolerance', '-tol', 
+                        type=float,
+                        default=1e-6,
+                        help='The target relative error for adaptive time stepping.')
+    parser.add_argument('--no-adaptive-stepping', 
+                        action='store_false', 
+                        dest='adaptive_stepping',
+                        help='Disable adaptive time stepping.')
+    parser.add_argument('--min-step-size','-n', 
+                        type=float,
+                        default=1e-8,
+                        help='The minimum time step size for adaptive stepping.')
+    parser.add_argument('--max-step-size', '-x',
+                        type=float,
+                        default=1e4,
+                        help='The maximum time step size for adaptive stepping.')
+    
+    args = parser.parse_args()
+
     # Initial conditions
     t0 = 0.0
-    tf = 1.0e7
+    tf = args.final_time
     u0 = [1.0, 0.0, 0.0]
-    systeme = RobertsonModel(t0, tf, u0)
+    system = RobertsonModel(t0, tf, u0)
 
     # sdirk solver
-    step_size = 1e-4
-    solveur_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk21_crouzeix_raviart'))
+    step_size = args.step_size
+    method = args.method
+
+    # define the solver
+    solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name(method))
+
+
+    # Solve the system
     start=time.time()
-    t_sdirk, sol_sdirk = solveur_sdirk.solve(systeme, step_size, adaptive_time_stepping=True, target_relative_error=1e-10, min_step_size=1e-8, max_step_size=1e6)
+    times, solutions = solver.solve(
+        system,
+        initial_step_size=args.step_size,
+        adaptive_time_stepping=args.adaptive_stepping,
+        target_relative_error=args.tolerance,
+        min_step_size=args.min_step_size,
+        max_step_size=args.max_step_size
+    )
     elapsed=time.time()-start
     print(f"Python EDOs runtime: {elapsed:.4f} seconds")
+    
     # Create a single figure with two subplots
-    fig = plt.figure(figsize=(14, 6)) # Adjust figure size to accommodate two plots side-by-side
+    fig = plt.figure(figsize=(7, 6)) # Adjust figure size to accommodate two plots side-by-side
     
     # 1. First subplot: Time series plot
-    ax1 = fig.add_subplot(1, 2, 1)
-    ax1.semilogx(t_sdirk, sol_sdirk[:,0], 'b.-', markersize=2, label='x(t) sdirk')
-    ax1.semilogx(t_sdirk, 1e4*sol_sdirk[:,1], 'r-', markersize=2, label='10^4 y(t) sdirk')
-    ax1.semilogx(t_sdirk, sol_sdirk[:,2], 'm-', markersize=2, label='z(t) sdirk')
+    ax1 = fig.add_subplot(1, 1, 1)
+    ax1.semilogx(times, solutions[:,0], 'b.-', markersize=2, label='x(t)')
+    ax1.semilogx(times, 1e4*solutions[:,1], 'r-', markersize=2, label='10^4 y(t)')
+    ax1.semilogx(times, solutions[:,2], 'm-', markersize=2, label='z(t)')
     ax1.set_title("Robertson Model: Solutions")
     ax1.set_xlabel("Time")
     ax1.set_ylabel("Value")

@@ -39,7 +39,7 @@ def main():
     
     args = parser.parse_args()
     
-    if args.list_schemes or args.help:
+    if args.list_schemes:
         print_available_schemes()
         return
 

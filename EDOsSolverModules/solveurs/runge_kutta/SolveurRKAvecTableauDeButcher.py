@@ -186,7 +186,7 @@ class SolveurRKAvecTableauDeButcher(object):
                 solutions.append(U_courant)
                 step_size = new_step_size # Update step size for next iteration
                 number_of_time_steps += 1
-                if number_of_time_steps % 100 == 0:
+                if number_of_time_steps % 1000 == 0:
                     print(f"Time step #{number_of_time_steps} completed. Current time: {temps_courant:.4f}")
 
             else:

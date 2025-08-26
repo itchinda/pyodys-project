@@ -123,6 +123,28 @@ def _get_fehlberg45():
     C = [0.0, 1/4, 3/8, 12/13, 1.0, 1/2]
     return {"A": A, "B": B, "C": C, "ordre": 5}
 
+def _get_dopri5():
+    """
+    Embedded explicit Runge-Kutta: Dormand-Prince (Order 4/5, 7 stages)
+    """
+    A = [
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [1/5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [3/40, 9/40, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [44/45, -56/15, 32/9, 0.0, 0.0, 0.0, 0.0],
+        [19372/6561, -25360/2187, 64448/6561, -212/729, 0.0, 0.0, 0.0],
+        [9017/3168, -355/33, 46732/5247, 49/176, -5103/18656, 0.0, 0.0],
+        [35/384, 0.0, 500/1113, 125/192, -2187/6784, 11/84, 0.0],
+    ]
+    
+    b = [35/384, 0.0, 500/1113, 125/192, -2187/6784, 11/84, 0.0]
+    bh = [5179/57600, 0.0, 7571/16695, 393/640, -92097/339200, 187/2100, 1/40]
+    B = [b, bh]
+
+    C = [0.0, 1/5, 3/10, 4/5, 8/9, 1.0, 1.0]
+
+    return {"A": A, "B": B, "C": C, "ordre": 5}
+
 def _get_sdirk21_crouzeix_raviart():
     """
     Embedded SDIRK: Crouzeix-Raviart method (Order 1/2, 2 stages)
@@ -228,6 +250,7 @@ def available_butcher_table_data_to_json():
         "euler_heun": _get_euler_heun(),
         "bogacki_shampine": _get_bogacki_shampine(),
         "fehlberg45": _get_fehlberg45(),
+        "dopri5": _get_dopri5(),
         "sdirk21_crouzeix_raviart": _get_sdirk21_crouzeix_raviart(),
         "sdirk32": _get_sdirk32(),
         "sdirk_norsett_thomson_23": _get_sdirk_norsett_thomson_23(),
