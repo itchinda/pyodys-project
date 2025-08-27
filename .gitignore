@@ -1,3 +1,5 @@
 __pycache__
 .pytest_cache
 *.egg-info/
+how_to.txt
+dist/
