@@ -44,8 +44,8 @@ Clone the repository and install the package in "editable" mode:
 
 
 ```bash
-git clone https://github.com/itchinda/edo.git
-cd edo
+git clone https://github.com/itchinda/pyodys-project.git
+cd pyodys-project
 pip install -e .
 
 ```
@@ -59,7 +59,7 @@ The `-e` flag allows you to run the package from any directory while still being
 You can list all the available Runge-Kutta schemes directly from the command line:
 
 ```bash
-python -m EDOsSolverModules --list-schemes
+python -m pyodys --list-schemes
 ```
 
 ### Running a Quick Example
@@ -67,7 +67,7 @@ python -m EDOsSolverModules --list-schemes
 To solve the Lorenz System with a simple command, you can use one of the provided examples The script will automatically handle the initial conditions and visualization.
 
 ```bash
-python -m examples.lorenz_system --method dopri5 --final-time 50.0
+python -m examples/lorenz_system.py --method dopri5 --final-time 50.0
 ```
 
 You can customize the simulation by changing parameters like the method (`--method`), final time (`--final-time`), step size (`--step-size`), and tolerance (`--tolerance`).
@@ -92,9 +92,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Using the top-level imports from the installed package
-from EDOsSolverModules import EDOs
-from EDOsSolverModules import TableauDeButcher
-from EDOsSolverModules import SolveurRKAvecTableauDeButcher
+from pyodys import EDOs
+from pyodys import TableauDeButcher
+from pyodys import SolveurRKAvecTableauDeButcher
 
 # Define coupled linear system
 class SystemeCouple(EDOs):
