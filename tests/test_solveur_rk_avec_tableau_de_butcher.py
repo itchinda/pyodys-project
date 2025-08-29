@@ -90,20 +90,34 @@ class StiffProblem(EDOs):
 def exact_solution(t):
     return np.array([2.0*np.exp(-t) - np.exp(-100.0 * t), 2.0 * np.exp(-t)])
 
-def test_step_size_adjustment_limits():
+@pytest.mark.parametrize("method_name", [m for m in TableauDeButcher.SCHEMAS_DISPONIBLES
+                                          if TableauDeButcher.par_nom(m).est_avec_prediction])
+def test_step_size_adjustment_time_limits(method_name):
     """Test that step size is clipped to min/max limits."""
-    tableau = TableauDeButcher.par_nom("sdirk_norsett_thomson_34")
-    solver = SolveurRKAvecTableauDeButcher(tableau)
+    tableau = TableauDeButcher.par_nom(method_name)
+    solver = SolveurRKAvecTableauDeButcher(tableau, progress_interval_in_time=1.0, max_jacobian_refresh=2)
     
 
     system = StiffProblem(t_init=0.0, t_final=1.0, initial_state=[1.0,2.0])
-    temps, solutions = solver.resoud(system, initial_step_size=1e-1, adaptive_time_stepping=True,
-                                     target_relative_error=1e-8, min_step_size=1e-6, max_step_size=10.0)
+    temps, solutions = solver.resoud(system, initial_step_size=1e-4, adaptive_time_stepping=True,
+                                     target_relative_error=1e-8, min_step_size=1e-8, max_step_size=1.0)
 
     # Check that all steps are >= min_step_size and <= max_step_size
     steps = np.diff(temps)
-    assert np.all(steps >= 1e-6)
-    assert np.all(steps <= 10)
+    assert np.all(steps >= 1e-8)
+    assert np.all(steps <= 1.0)
+
+@pytest.mark.parametrize("method_name", [m for m in TableauDeButcher.SCHEMAS_DISPONIBLES
+                                          if TableauDeButcher.par_nom(m).est_avec_prediction])
+def test_solver_adaptive_step_runs_and_matches_exact_solution(method_name):
+    """Test that step size is clipped to min/max limits."""
+    tableau = TableauDeButcher.par_nom(method_name)
+    solver = SolveurRKAvecTableauDeButcher(tableau, progress_interval_in_time=1.0, max_jacobian_refresh=2)
+    
+
+    system = StiffProblem(t_init=0.0, t_final=1.0, initial_state=[1.0,2.0])
+    temps, solutions = solver.resoud(system, initial_step_size=1e-4, adaptive_time_stepping=True,
+                                     target_relative_error=1e-8, min_step_size=1e-8, max_step_size=1.0)
 
     for i, t in enumerate(temps):
             numerical_solution = solutions[i]

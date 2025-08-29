@@ -1,6 +1,8 @@
 import numpy as np
 import json
 import os
+from fractions import Fraction
+
 
 def _get_euler_explicite():
     """Returns the data for the Explicit Euler scheme."""
@@ -41,16 +43,16 @@ def _get_cooper_verner():
     
     a21 = 1/2
     a31 = 1/4; a32 = 1/4
-    a41 = 1/7; a42 = (-7-3*sqrt21)/98; a43 = (21+5*sqrt21)/49
-    a51 = (11+sqrt21)/84; a52=0; a53 = (18+4*sqrt21)/63; a54 = (21-sqrt21)/252
-    a61 = (5+sqrt21)/48;  a62=0; a63 = (9+sqrt21)/36; a64 = (-231+14*sqrt21)/360; a65 = (63-7*sqrt21)/80
-    a71 = (10-sqrt21)/42; a72=0; a73 = (-432+92*sqrt21)/315; a74=(633-145*sqrt21)/90; a75=(-504+115*sqrt21)/70; a76 = (63-13*sqrt21)/35
-    a81 = 1/14; a82=0; a83=0; a84=0; a85 = (14-3*sqrt21)/126; a86=(13-3*sqrt21)/63; a87 = 1/9
-    a91 = 1/32; a92=0; a93=0; a94=0; a95 = (91-21*sqrt21)/576; a96=11/72; a97=(-385-75*sqrt21)/1152; a98 = (63+13*sqrt21)/128
-    a101= 1/14; a102=0;a103=0;a104=0;a105=1/9; a106=(-733-147*sqrt21)/2205; a107 = (515+111*sqrt21)/504; a108 = (-51-11*sqrt21)/56; a109 = (132+28*sqrt21)/245
-    a111= 0; a112=0; a113=0; a114=0; a115=(-42+7*sqrt21)/18; a116 = (-18+28*sqrt21)/45; a117=(-273-53*sqrt21)/72; a118=(301+53*sqrt21)/72; a119=(28-28*sqrt21)/45; a1110=(49-7*sqrt21)/1
+    a41 = 1./7; a42 = (-7+3*sqrt21)/98; a43 = (21-5*sqrt21)/49
+    a51 = (11-sqrt21)/84; a52=0; a53 = (18-4*sqrt21)/63; a54 = (21+sqrt21)/252
+    a61 = (5-sqrt21)/48;  a62=0; a63 = (9-sqrt21)/36; a64 = (-231-14*sqrt21)/360; a65 = (63+7*sqrt21)/80
+    a71 = (10+sqrt21)/42; a72=0; a73 = (-432-92*sqrt21)/315; a74=(633+145*sqrt21)/90; a75=(-504-115*sqrt21)/70; a76 = (63+13*sqrt21)/35
+    a81 = 1./14; a82=0; a83=0; a84=0; a85 = (14+3*sqrt21)/126; a86=(13+3*sqrt21)/63; a87 = 1./9
+    a91 = 1./32; a92=0; a93=0; a94=0; a95 = (91+21*sqrt21)/576; a96=11./72; a97=(-385+75*sqrt21)/1152; a98 = (63-13*sqrt21)/128
+    a101= 1./14; a102=0;a103=0;a104=0;a105=1./9; a106=(-733+147*sqrt21)/2205; a107 = (515-111*sqrt21)/504; a108 = (-51+11*sqrt21)/56; a109 = (132-28*sqrt21)/245
+    a111= 0; a112=0; a113=0; a114=0; a115=(-42-7*sqrt21)/18; a116 = (-18-28*sqrt21)/45; a117=(-273+53*sqrt21)/72; a118=(301-53*sqrt21)/72; a119=(28+28*sqrt21)/45; a1110=(49+7*sqrt21)/18
     b1 = 1/20; b2=0; b3=0; b4=0; b5=0; b6=0; b7=0; b8=49/180; b9=16/45; b10=49/180; b11=1/20
-    c1=0; c2 = 1/2; c3=1/2; c4 = (7+sqrt21)/14; c5 = (7+sqrt21)/14; c6=1/2; c7=(7-sqrt21)/14; c8=(7-sqrt21)/14; c9=1/2; c10=(7+sqrt21)/14; c11=1
+    c1=0; c2 = 1./2; c3=1./2; c4 = (7-sqrt21)/14; c5 = (7-sqrt21)/14; c6=1/2; c7=(7+sqrt21)/14; c8=(7+sqrt21)/14; c9=1./2; c10=(7-sqrt21)/14; c11=1
     A = [
         [   0,      0,    0,    0,    0,    0,    0,    0,    0,     0,   0 ],
         [ a21,      0,    0,    0,    0,    0,    0,    0,    0,     0,   0 ],
@@ -151,39 +153,19 @@ def _get_sdirk21_crouzeix_raviart():
     A-stable.
     """
     
-    gamma = (3 + np.sqrt(3)) / 6.0
+    gamma = 1 - 1.0/ np.sqrt(2)
     
     A = [
             [gamma, 0.0],
             [1.0 - gamma, gamma]
         ]
     
-    b = [0.5, 0.5] # Coefficients for the higher-order solution (Order 2)
+    b = [1-gamma, gamma] # Coefficients for the higher-order solution (Order 2)
     b_embedded = [1.0, 0.0]  # Coefficients for the lower-order embedded solution (Order 1)
     B = [b, b_embedded]
     C = [gamma, 1.0]
     
     return {"A": A, "B": B, "C": C, "ordre": 2}
-
-def _get_sdirk32():
-    """
-    Embedded SDIRK: Standard SDIRK32 method (Order 2/3, 3 stages)
-    A-stable.
-    """
-    gamma = (3 + np.sqrt(3)) / 6.0
-    
-    A = [
-            [gamma, 0.0, 0.0],
-            [1.0 - gamma, gamma, 0.0],
-            [0.0, 1.0 - gamma, gamma]
-        ]
-    
-    b = [1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0] # Coefficients for the higher-order solution (Order 3)
-    b_embedded = [1.0 / 2.0, 1.0 / 2.0, 0.0]  # Coefficients for the lower-order embedded solution (Order 2)
-    B = [b, b_embedded]
-    C = [gamma, 1.0, 1.0]
-    
-    return {"A": A, "B": B, "C": C, "ordre": 3}
 
 def _get_sdirk_norsett_thomson_23():
     """
@@ -238,6 +220,61 @@ def _get_sdirk_hairer_norsett_wanner_45():
     C = [1/4, 3/4, 11/20, 1/2, 1.0]
     return {"A": A, "B": B, "C": C, "ordre": 5}
 
+def _get_esdirk6():
+    # a11 = 0; a22 = 5/16; a33 =5/16; a44 = 5/16; a55 =5/16; a66 = 5/16; a77 = 5/16
+    # a21 = 5/16
+    # a31 = -6647797099592./102714892273533; a32= -6647797099592./102714892273533
+    # a41 = -87265218833./1399160431079; a42 = -87265218833./1399160431079; a43=3230569391728./5191843160709
+    # a51 = -3742173976023./7880396319491; a52 = -4537732256035./9784784042546; a53 = 32234033847818./24636233068093
+    # a54 = 1995418204833./9606020544314
+    # a61 = -460973220726./7579441323155; a62 = -113988582459./8174956167569; a63 = -679076942985./7531712581924
+    # a64 = 1946214040135./12392905069014; a65=-2507263458377./16215886710685
+    # a71 = 2429030329867./4957732179206; a72 = -5124723475981./12913403568538; a73 = 3612624980699./11761071195830
+    # a74 = 714493169479./5549220584147; a75 = -4586610949246./13858427945825; a76 = -4626134504839./7500671962341
+    # b11 = 541976983222./5570117184863; b12 = 424517620289./10281234581904; b13 = 3004784109584./2968823999583
+    # b14 = -1080268266981./2111416452515; b15 = 3198291424887./7137915940442; b16 = -6709580973937./9894986011196
+    # b17 = 4328230890552./7324362344791
+    # b21 = 23807813993./6613359907661; b22 = 122567156372./6231407414731; b23 = 5289947382915./9624205771537
+    # b24 = -132784415823./2592433009541; b25 = 2055455363695./9863229933602; b26 = -686952476184./6416474135057
+    # b27 = 2766631516579./7339217152243
+    # c1 = 0; c2 = 5./8; c3 = 5*(2-np.sqrt(2))/16; c4 = 81./100; c5 = 89./100; c6 = 3./20; c7 = 11./16
+    # A = [ 
+    #         [  0,   0,   0,   0,   0,   0,   0],
+    #         [a21, a22,   0,   0,   0,   0,   0],
+    #         [a31, a32, a33,   0,   0,   0,   0],
+    #         [a41, a42, a43, a44,   0,   0,   0],
+    #         [a51, a52, a53, a54, a55,   0,   0],
+    #         [a61, a62, a63, a64, a65, a66,   0],
+    #         [a71, a72, a73, a74, a75, a76, a77]
+    #     ]
+    # B = [
+    #         [b21, b22, b23, b24, b25, b26, b27],
+    #         [b11, b12, b13, b14, b15, b16, b17]
+    #     ]
+    # C = [c1,c2,c3,c4,c5,c6,c7]
+
+    A = [
+            [Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
+            [Fraction(5, 16), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
+            [Fraction(-6647797099592, 102714892273533), Fraction(-6647797099592, 102714892273533), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
+            [Fraction(-87265218833, 1399160431079), Fraction(-87265218833, 1399160431079), Fraction(3230569391728, 5191843160709), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
+            [Fraction(-3742173976023, 7880396319491), Fraction(-4537732256035, 9784784042546), Fraction(32234033847818, 24636233068093), Fraction(1995418204833, 9606020544314), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1)],
+            [Fraction(-460973220726, 7579441323155), Fraction(-113988582459, 8174956167569), Fraction(-679076942985, 7531712581924), Fraction(1946214040135, 12392905069014), Fraction(-2507263458377, 16215886710685), Fraction(5, 16), Fraction(0, 1)],
+            [Fraction(2429030329867, 4957732179206), Fraction(5124723475981, 12913403568538), Fraction(3612624980699, 11761071195830), Fraction(714493169479, 5549220584147), Fraction(-4586610949246, 13858427945825), Fraction(-4626134504839, 7500671962341), Fraction(5, 16)]
+        ]
+
+    b = [Fraction(541976983222, 5570117184863), Fraction(424517620289, 10281234581904), Fraction(3004784109584, 2968823999583), Fraction(-1080268266981, 2111416452515), Fraction(3198291424887, 7137915940442), Fraction(-6709580973937, 9894986011196), Fraction(4328230890552, 7324362344791)]
+    bhat = [Fraction(23807813993, 6613359907661), Fraction(122567156372, 6231407414731), Fraction(5289947382915, 9624205771537), Fraction(-132784415823, 2592433009541), Fraction(2055455363695, 9863229933602), Fraction(-686952476184, 6416474135057), Fraction(2766631516579, 7339217152243)]
+
+    # Convert to floats for numerical use
+    A = [[float(x) for x in row] for row in A]
+    b_float = [float(x) for x in b]
+    bhat_float = [float(x) for x in bhat]
+    B = [b_float, bhat_float]
+    c1 = 0; c2 = 5./8; c3 = 5.*(2-np.sqrt(2))/16; c4 = 81./100; c5 = 89./100; c6 = 3./20; c7 = 11./16
+    C = [c1,c2,c3,c4,c5,c6,c7]
+    return {"A": A, "B": B, "C": C, "ordre": 6}
+
 def available_butcher_table_data_to_json():
     """
     Collects data from all scheme functions and generates a single JSON file.
@@ -252,10 +289,10 @@ def available_butcher_table_data_to_json():
         "fehlberg45": _get_fehlberg45(),
         "dopri5": _get_dopri5(),
         "sdirk21_crouzeix_raviart": _get_sdirk21_crouzeix_raviart(),
-        "sdirk32": _get_sdirk32(),
         "sdirk_norsett_thomson_23": _get_sdirk_norsett_thomson_23(),
         "sdirk_norsett_thomson_34": _get_sdirk_norsett_thomson_34(),
-        "sdirk_hairer_norsett_wanner_45": _get_sdirk_hairer_norsett_wanner_45()
+        "sdirk_hairer_norsett_wanner_45": _get_sdirk_hairer_norsett_wanner_45(),
+        "esdirk6": _get_esdirk6()
     }
 
     script_dir = os.path.dirname(os.path.abspath(__file__))

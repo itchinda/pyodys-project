@@ -159,3 +159,10 @@ class TestParNom:
         tableau = TableauDeButcher.par_nom('EULER_EXPLICITE')
         assert isinstance(tableau, TableauDeButcher)
         assert tableau.ordre == 1
+
+@pytest.mark.parametrize("scheme", [m for m in TableauDeButcher.SCHEMAS_DISPONIBLES])
+def test_sum_of_matrix_a_per_rows_matches_c(scheme):
+    """Test that sum of A coefficients per row matches C coefficients."""
+    tableau = TableauDeButcher.par_nom(scheme)
+    sum_a = np.sum(tableau.A, axis=1)
+    assert np.allclose(tableau.C, sum_a, rtol=1e-7, atol=1e-7)
