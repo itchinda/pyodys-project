@@ -1,7 +1,16 @@
 from ...systemes.EDOs import EDOs
 from .TableauDeButcher import TableauDeButcher
 import numpy as np 
-from scipy.linalg import lu_factor, lu_solve
+from scipy.linalg import lu_factor, lu_solve, LinAlgError
+import csv
+import os
+
+class PyOdysError(RuntimeError):
+    """
+    Exception raised PyOdys fails to solve a problem.
+    """
+    def __init__(self, message):
+        super().__init__(message)
 
 def wrms_norm(delta, u, atol=1e-12, rtol=1e-6):
     """
@@ -14,11 +23,57 @@ def wrms_norm(delta, u, atol=1e-12, rtol=1e-6):
     scale = atol + rtol * np.abs(u)
     return np.sqrt(np.mean((delta / scale)**2))
 
+
+
 class SolveurRKAvecTableauDeButcher(object):
-    def __init__(self, tableau_de_butcher=TableauDeButcher.par_nom('rk4') ):
+    def __init__(self, tableau_de_butcher=TableauDeButcher.par_nom('rk4'), 
+                 verbose: bool = True, 
+                 progress_interval_in_time: int = 100.0, 
+                 max_jacobian_refresh = 1,
+                 export_interval: int = None,
+                 export_prefix=None):
         if not isinstance(tableau_de_butcher, TableauDeButcher):
             raise TypeError("On devrait passer un objet de type TableauDeButcher.")
         self.tableau_de_butcher = tableau_de_butcher
+        self.verbose = verbose
+        self.progress_interval_in_time = progress_interval_in_time
+        self.max_jacobian_refresh = max_jacobian_refresh
+        self.export_interval = export_interval
+        self.export_prefix = export_prefix
+        self.export_counter = 0
+
+
+    def _print_verbose(self, message):
+        """Prints a message only if the verbose flag is true."""
+        if self.verbose:
+            print(message)
+
+    def _print_pyodys_error_message(self, message):
+        """Prints an error message."""
+        print(message)
+
+    def _export(self, temps, solutions: np.ndarray):
+        """Export partial results in CSV."""
+        if self.export_prefix is None:
+            return
+        self.export_counter += 1
+
+        # dossier + nom de fichier
+        filename = f"{self.export_prefix}_{self.export_counter:05d}.csv"
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+        n_vars = solutions.shape[1] if solutions.ndim > 1 else 1
+        with open(filename, mode="w", newline="") as f:
+            writer = csv.writer(f)
+            # entête
+            header = ["t"] + [f"u{i}" for i in range(n_vars)]
+            writer.writerow(header)
+            # données
+            for t, u in zip(temps, solutions):
+                row = [t] + (u.tolist() if n_vars > 1 else [u])
+                writer.writerow(row)
+
+        self._print_verbose(f"Exported {len(temps)} steps to {filename}")
 
     def _effectueUnPasDeTempsRKAvecTableauDeButcher(self, F:EDOs, tn: float, delta_t: float, U_np: np.ndarray):
         """
@@ -53,10 +108,10 @@ class SolveurRKAvecTableauDeButcher(object):
         U_chap = np.zeros((nombre_d_equations, nombre_de_niveaux))
         valeur_f = np.zeros((nombre_d_equations, nombre_de_niveaux))
 
-        max_iteration_newton = 25
+        max_iteration_newton = 10
         min_iteration_newton = 4
         abs_tolerance = 1e-12
-        rel_tolerance = 1e-6
+        rel_tolerance = 1e-8
 
         U_n = np.copy(U_np)
         U_pred = np.zeros_like(U_np)
@@ -74,13 +129,13 @@ class SolveurRKAvecTableauDeButcher(object):
                 U_newton = np.copy(U_chap_k)
 
                 success = False
-                for refresh in range(2):
+                for refresh in range(self.max_jacobian_refresh+1):
                     J = F.jacobien(tn_k, U_newton)
                     A = I - delta_t_x_akk * J
 
                     try:
                         LU_piv = lu_factor(A)                     # LU factorization once
-                    except Exception:
+                    except LinAlgError:
                         newton_not_happy = True
                         return U_n, U_pred, newton_not_happy
 
@@ -90,15 +145,13 @@ class SolveurRKAvecTableauDeButcher(object):
                         try:
                             delta = lu_solve(LU_piv, residu)
                         except:
+                            self._print_verbose(f"Jacobian factorization failed at stage {k}")
                             newton_not_happy = True
                             return U_n, U_pred, newton_not_happy
                         U_newton -= delta
-                        # verifie la convergence
 
-                        #convergence = wrms_norm(delta, U_newton, abs_tolerance, rel_tolerance) < 1.0
-                        #convergence = (np.linalg.norm(delta) <= abs_tolerance) and (np.linalg.norm(delta / (U_newton + 1e-12)) <= rel_tolerance)
-                        scaled_error = np.abs(delta) / (abs_tolerance + np.abs(U_newton) * rel_tolerance)
-                        convergence = np.linalg.norm(scaled_error, ord=np.inf) <= 1.0
+                        # verifie la convergence
+                        convergence = wrms_norm(delta, U_newton, abs_tolerance, rel_tolerance) < 1.0
                         if convergence and iteration_newton >= min_iteration_newton:
                             success=True
                             break
@@ -106,6 +159,7 @@ class SolveurRKAvecTableauDeButcher(object):
                         break
                 else:
                     newton_not_happy = True
+                    self._print_verbose(f"Newton failed at stage {k} even after Jacobian refresh")
                     return U_n, U_pred, newton_not_happy
 
                 U_chap[:, k] = U_newton
@@ -138,7 +192,7 @@ class SolveurRKAvecTableauDeButcher(object):
                 - solutions (list): A list of the solution vectors at each time point.
         """
         if (not self.tableau_de_butcher.est_avec_prediction) and (adaptive_time_stepping):
-            print('Warning: The selected solver does not support adaptive time stepping. Using fixed time steps instead. ⚠️')
+            self._print_verbose('Warning: The selected solver does not support adaptive time stepping. Using fixed time steps instead. ⚠️')
             adaptive_time_stepping = False
         
         if not adaptive_time_stepping:
@@ -155,8 +209,9 @@ class SolveurRKAvecTableauDeButcher(object):
         order = self.tableau_de_butcher.ordre
 
         number_of_time_steps = 0
-        newton_failure_count = 0  # Counter for consecutive Newton failures
-        max_newton_failures = 10  # Maximum number of failures before stopping
+        next_progress_in_time = systeme_EDOs.t_init + self.progress_interval_in_time
+        newton_failure_count = 0 
+        max_newton_failures = 10
 
         while temps_courant < t_final:
             U_n_plus_1, U_pred, newton_not_happy = self._effectueUnPasDeTempsRKAvecTableauDeButcher(
@@ -165,12 +220,12 @@ class SolveurRKAvecTableauDeButcher(object):
 
             if newton_not_happy:
                 newton_failure_count += 1
-                print(f"Newton failed at time t = {temps_courant:.4f}. Reducing step size and retrying. Failure count: {newton_failure_count}")
+                self._print_verbose(f"Newton failed at time t = {temps_courant:.4f}. Reducing step size and retrying. Failure count: {newton_failure_count}")
                 step_size = np.maximum(step_size / 2.0, min_step_size)  # Reduce step size
                 if newton_failure_count >= max_newton_failures:
-                    print(f"Maximum consecutive Newton failures ({max_newton_failures}) reached. Stopping the simulation.")
-                    break
-                continue  # Skip the rest of the loop and retry the same time step
+                    message = f"Maximum consecutive Newton failures ({max_newton_failures}) reached. Stopping the simulation."
+                    self._print_verbose(message)
+                    raise PyOdysError(message)
 
             # Reset failure counter on success
             newton_failure_count = 0
@@ -186,15 +241,20 @@ class SolveurRKAvecTableauDeButcher(object):
                 solutions.append(U_courant)
                 step_size = new_step_size # Update step size for next iteration
                 number_of_time_steps += 1
-                if number_of_time_steps % 1000 == 0:
-                    print(f"Time step #{number_of_time_steps} completed. Current time: {temps_courant:.4f}")
-
+                if temps_courant >= next_progress_in_time:
+                    self._print_verbose(f"Time step #{number_of_time_steps} completed. Current time: {temps_courant:.4f}")
+                    next_progress_in_time += self.progress_interval_in_time
+                if self.export_interval and (number_of_time_steps+1) % self.export_interval == 0:
+                    self._export(np.array(temps), np.array(solutions))
+                    # on vide les buffers sauf la dernière valeur
+                    temps = [temps[-1]]
+                    solutions = [solutions[-1]]
             else:
                 # Step rejected: retry with the new, smaller step size
-                print(f"Time step {step_size} rejected at t = {temps_courant:.4f}. Retrying with step size: {new_step_size:.4e}")
+                self._print_verbose(f"Time step {step_size} rejected at t = {temps_courant:.4f}. Retrying with step size: {new_step_size:.4e}")
                 step_size = new_step_size
 
-        print(f"The total number of time steps required to reach t_final = {t_final} is {number_of_time_steps}.")
+        self._print_verbose(f"The total number of time steps required to reach t_final = {t_final} is {number_of_time_steps}.")
         return np.array(temps), np.array(solutions)
 
     
@@ -213,10 +273,10 @@ class SolveurRKAvecTableauDeButcher(object):
         
         # Check for minimum and maximum step sizes
         if new_step_size < min_step_size:
-            print(f'Warning! The computed step size {new_step_size:.4e} is less than the actual min step size: {min_step_size:.4e}. Using min step size.')
+            self._print_verbose(f'Warning! The computed step size {new_step_size:.4e} is less than the actual min step size: {min_step_size:.4e}. Using min step size.')
             new_step_size = min_step_size
         elif new_step_size > max_step_size:
-            print(f'Warning! The computed step size {new_step_size:.4e} is greater than the actual max step size: {max_step_size:.4e}. Using max step size.')
+            self._print_verbose(f'Warning! The computed step size {new_step_size:.4e} is greater than the actual max step size: {max_step_size:.4e}. Using max step size.')
             new_step_size = max_step_size
         
         # Final check to prevent overshooting the final time
@@ -251,6 +311,7 @@ class SolveurRKAvecTableauDeButcher(object):
         
         U_courant = np.copy(systeme_EDOs.initial_state)
         temps_courant = systeme_EDOs.t_init
+        next_progress_in_time = systeme_EDOs.t_init + self.progress_interval_in_time
         
         max_number_of_time_steps = int ((systeme_EDOs.t_final - systeme_EDOs.t_init) / step_size)
 
@@ -262,8 +323,9 @@ class SolveurRKAvecTableauDeButcher(object):
             
             # Verifie la convergence de Newton
             if newton_not_happy:
-                print(f"L'algorithme de Newton a echoue a converger au pas de temps {i+1}. Arret de la simulation.")
-                break
+                message = f"Newton failed at stage {i+1} even after Jacobian refresh."
+                self._print_verbose(message)
+                raise PyOdysError(message)
                 
             # Mise a jour de la solution courante et du temps courant
             U_courant = U_n_plus_1
@@ -272,6 +334,16 @@ class SolveurRKAvecTableauDeButcher(object):
             # On sauvegarde la solution du pas de temps dans le vecteur solution
             temps.append(temps_courant)
             solutions.append(U_courant)
+
+            if self.export_interval and (i+1) % self.export_interval == 0:
+                self._export(np.array(temps), np.array(solutions))
+                # on vide les buffers sauf la dernière valeur
+                temps = [temps[-1]]
+                solutions = [solutions[-1]]
+
+            if temps_courant >= next_progress_in_time:
+                    self._print_verbose(f"Time step #{i} completed. Current time: {temps_courant:.4f}")
+                    next_progress_in_time += self.progress_interval_in_time
 
         return np.array(temps), np.array(solutions)
     
