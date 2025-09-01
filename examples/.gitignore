@@ -1,1 +1,6 @@
 __pycache__
+*.csv
+*.ipynb
+*.eps
+fatimata.py 
+test_hermite.py 

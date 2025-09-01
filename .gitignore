@@ -6,3 +6,5 @@ dist/
 *.csv
 results
 resultats
+venv/
+.venv/

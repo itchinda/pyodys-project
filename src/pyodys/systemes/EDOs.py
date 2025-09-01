@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+from numpy.typing import ArrayLike
 
 class EDOs(ABC):
     """
@@ -7,11 +8,11 @@ class EDOs(ABC):
     Chaque classe heritiere devra implemente la methode 'evalue'
     """
     
-    def __init__(self, t_init, t_final, initial_state):
+    def __init__(self, t_init: float, t_final:float, initial_state: ArrayLike):
         self.t_init = float(t_init)
         self.t_final = float(t_final)
         self.initial_state = np.array(initial_state, dtype=np.float64)
-        self.delta = 1e-6  # faible perturbation pour le calcul du jacobien numerique
+        self.delta = 1e-5  # faible perturbation pour le calcul du jacobien numerique
 
     @abstractmethod
     def evalue(self, t, u):
