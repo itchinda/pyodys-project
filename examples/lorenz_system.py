@@ -21,6 +21,9 @@ class LorenzSystem(EDOs):
         dzdt = x * y - self.beta * z
         return np.array([dxdt, dydt, dzdt])
     
+    def __call__(self, t, u):
+        return self.evalue(t, u)
+    
     def jacobien(self, t, u):
         x, y, z = u
         Jacobien = np.array([

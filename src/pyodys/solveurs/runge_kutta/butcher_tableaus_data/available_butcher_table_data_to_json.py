@@ -104,7 +104,7 @@ def _get_bogacki_shampine():
     bh = [2/9, 1/3, 4/9, 0.0]   # order 3 embedded solution
     B = [b, bh]
     C = [0.0, 0.5, 3/4, 1.0]
-    return {"A": A, "B": B, "C": C, "ordre": 4}
+    return {"A": A, "B": B, "C": C, "ordre": 3}
 
 
 def _get_fehlberg45():
@@ -165,7 +165,7 @@ def _get_sdirk21_crouzeix_raviart():
     B = [b, b_embedded]
     C = [gamma, 1.0]
     
-    return {"A": A, "B": B, "C": C, "ordre": 2}
+    return {"A": A, "B": B, "C": C, "ordre": 1}
 
 def _get_sdirk_norsett_thomson_23():
     """
@@ -180,11 +180,11 @@ def _get_sdirk_norsett_thomson_23():
     bh = [26/61, 324/671, 1/11] # Order 2 solution for prediction
     B = [b, bh]
     C = [5/6, 29/108, 1/6]
-    return {"A": A, "B": B, "C": C, "ordre": 3}
+    return {"A": A, "B": B, "C": C, "ordre": 2}
 
 def _get_sdirk_norsett_thomson_34():
     """Returns the data for the SDIRK scheme."""
-    alpha = 5/6
+    alpha = 5.0/6
     A = [
         [alpha, 0, 0, 0],
         [-15/26, alpha, 0, 0],
@@ -200,7 +200,7 @@ def _get_sdirk_norsett_thomson_34():
         "A": A,
         "B": B,
         "C": C,
-        "ordre": 4
+        "ordre": 3
     }
 
 def _get_sdirk_hairer_norsett_wanner_45():
@@ -218,7 +218,7 @@ def _get_sdirk_hairer_norsett_wanner_45():
     bh = [25/24, -49/48, 125/16, -85/12, 1/4] # Order 4 solution for prediction
     B = [b, bh]
     C = [1/4, 3/4, 11/20, 1/2, 1.0]
-    return {"A": A, "B": B, "C": C, "ordre": 5}
+    return {"A": A, "B": B, "C": C, "ordre": 4}
 
 def _get_esdirk6():
     # a11 = 0; a22 = 5/16; a33 =5/16; a44 = 5/16; a55 =5/16; a66 = 5/16; a77 = 5/16
