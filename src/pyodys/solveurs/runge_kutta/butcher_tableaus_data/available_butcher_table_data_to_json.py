@@ -4,8 +4,8 @@ import os
 from fractions import Fraction
 
 
-def _get_euler_explicite():
-    """Returns the data for the Explicit Euler scheme."""
+def _get_erk1():
+    """Returns the Butcher tableau data for the 1st order Euler explicit scheme."""
     return {
         "A": [[0]],
         "B": [1],
@@ -13,16 +13,17 @@ def _get_euler_explicite():
         "ordre": 1
     }
 
-def _get_euler_implicite():
-    """Returns the data for the Implicit Euler scheme."""
+def _get_erk2_midpoint():
+    """Returns the Butcher tableau data for the 2nd explicit mid-point scheme."""
     return {
-        "A": [[1]],
-        "B": [1],
-        "C": [1],
-        "ordre": 1
+        "A": [[0.0, 0.0],
+              [0.5, 0.0]],
+        "B": [0.0, 1.0],
+        "C": [0.0, 0.5],
+        "ordre": 2
     }
 
-def _get_rk4():
+def _get_erk4():
     """Returns the data for the classical RK4 scheme."""
     return {
         "A": [
@@ -34,6 +35,40 @@ def _get_rk4():
         "B": [1/6, 1/3, 1/3, 1/6],
         "C": [0.0, 0.5, 0.5, 1.0],
         "ordre": 4
+    }
+
+
+def _get_sdirk1():
+    """Returns the Butcher tableau data for the 1st order Euler implicit scheme."""
+    return {
+        "A": [[1]],
+        "B": [1],
+        "C": [1],
+        "ordre": 1
+    }
+
+def _get_sdirk2_midpoint():
+    """Returns the butcher tableau data for the 2nd order 1 stage implicit mid-point scheme."""
+    return {
+        "A": [[0.5]],
+        "B": [1.0],
+        "C": [0.5],
+        "ordre": 2
+    }
+
+def _get_sdirk43_crouzeix():
+    """Returns the butcher tableau data for the 4th order 3 stages Crouzeix scheme."""
+    gamma = 1.068579021300
+    delta = 6*(2*gamma - 1)**2
+    return {
+        "A": [
+            [gamma, 0.0, 0.0],
+            [0.5-gamma, gamma, 0.0],
+            [2*gamma, 1-4*gamma, gamma]
+        ],
+        "B": [1/delta, 1-2/delta, 1/delta],
+        "C": [gamma, 0.5, 1-gamma],
+        "ordre": 2
     }
 
 def _get_cooper_verner():
@@ -221,37 +256,6 @@ def _get_sdirk_hairer_norsett_wanner_45():
     return {"A": A, "B": B, "C": C, "ordre": 4}
 
 def _get_esdirk6():
-    # a11 = 0; a22 = 5/16; a33 =5/16; a44 = 5/16; a55 =5/16; a66 = 5/16; a77 = 5/16
-    # a21 = 5/16
-    # a31 = -6647797099592./102714892273533; a32= -6647797099592./102714892273533
-    # a41 = -87265218833./1399160431079; a42 = -87265218833./1399160431079; a43=3230569391728./5191843160709
-    # a51 = -3742173976023./7880396319491; a52 = -4537732256035./9784784042546; a53 = 32234033847818./24636233068093
-    # a54 = 1995418204833./9606020544314
-    # a61 = -460973220726./7579441323155; a62 = -113988582459./8174956167569; a63 = -679076942985./7531712581924
-    # a64 = 1946214040135./12392905069014; a65=-2507263458377./16215886710685
-    # a71 = 2429030329867./4957732179206; a72 = -5124723475981./12913403568538; a73 = 3612624980699./11761071195830
-    # a74 = 714493169479./5549220584147; a75 = -4586610949246./13858427945825; a76 = -4626134504839./7500671962341
-    # b11 = 541976983222./5570117184863; b12 = 424517620289./10281234581904; b13 = 3004784109584./2968823999583
-    # b14 = -1080268266981./2111416452515; b15 = 3198291424887./7137915940442; b16 = -6709580973937./9894986011196
-    # b17 = 4328230890552./7324362344791
-    # b21 = 23807813993./6613359907661; b22 = 122567156372./6231407414731; b23 = 5289947382915./9624205771537
-    # b24 = -132784415823./2592433009541; b25 = 2055455363695./9863229933602; b26 = -686952476184./6416474135057
-    # b27 = 2766631516579./7339217152243
-    # c1 = 0; c2 = 5./8; c3 = 5*(2-np.sqrt(2))/16; c4 = 81./100; c5 = 89./100; c6 = 3./20; c7 = 11./16
-    # A = [ 
-    #         [  0,   0,   0,   0,   0,   0,   0],
-    #         [a21, a22,   0,   0,   0,   0,   0],
-    #         [a31, a32, a33,   0,   0,   0,   0],
-    #         [a41, a42, a43, a44,   0,   0,   0],
-    #         [a51, a52, a53, a54, a55,   0,   0],
-    #         [a61, a62, a63, a64, a65, a66,   0],
-    #         [a71, a72, a73, a74, a75, a76, a77]
-    #     ]
-    # B = [
-    #         [b21, b22, b23, b24, b25, b26, b27],
-    #         [b11, b12, b13, b14, b15, b16, b17]
-    #     ]
-    # C = [c1,c2,c3,c4,c5,c6,c7]
 
     A = [
             [Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
@@ -280,9 +284,12 @@ def available_butcher_table_data_to_json():
     Collects data from all scheme functions and generates a single JSON file.
     """
     all_schemes = {
-        "euler_explicite": _get_euler_explicite(),
-        "euler_implicite": _get_euler_implicite(),
-        "rk4": _get_rk4(),
+        "erk1": _get_erk1(),
+        "erk2_midpoint": _get_erk2_midpoint(),
+        "erk4": _get_erk4(),
+        "sdirk1": _get_sdirk1(),
+        "sdirk2_midpoint": _get_sdirk2_midpoint(),
+        "sdirk43_crouzeix": _get_sdirk43_crouzeix(),
         "cooper_verner": _get_cooper_verner(),
         "euler_heun": _get_euler_heun(),
         "bogacki_shampine": _get_bogacki_shampine(),
@@ -301,7 +308,5 @@ def available_butcher_table_data_to_json():
     with open(file_path, 'w') as f:
         json.dump(all_schemes, f, indent=4)
     
-    #print(f"Successfully generated {file_path} with {len(all_schemes)} schemes.")
-
 if __name__ == '__main__':
     available_butcher_table_data_to_json()

@@ -123,22 +123,22 @@ class TestParNom:
             tableau = TableauDeButcher.par_nom(nom)
             assert isinstance(tableau, TableauDeButcher)
 
-    def test_des_proprietes_euler_explicite(self):
-        tableau = TableauDeButcher.par_nom('euler_explicite')
+    def test_des_proprietes_erk1(self):
+        tableau = TableauDeButcher.par_nom('erk1')
         assert tableau.nombre_de_niveaux == 1
         assert tableau.est_explicite
         assert not tableau.est_implicite
         assert not tableau.est_diagonalement_implicite
 
-    def test_des_proprietes_euler_implicite(self):
-        tableau = TableauDeButcher.par_nom('euler_implicite')
+    def test_des_proprietes_sdirk1(self):
+        tableau = TableauDeButcher.par_nom('sdirk1')
         assert tableau.nombre_de_niveaux == 1
         assert tableau.est_implicite
         assert not tableau.est_explicite
         assert tableau.est_diagonalement_implicite
 
-    def test_des_proprietes_rk4(self):
-        tableau = TableauDeButcher.par_nom('rk4')
+    def test_des_proprietes_erk4(self):
+        tableau = TableauDeButcher.par_nom('erk4')
         assert tableau.nombre_de_niveaux == 4
         assert tableau.est_explicite
         assert not tableau.est_implicite
@@ -156,7 +156,7 @@ class TestParNom:
             TableauDeButcher.par_nom('non_existent')
 
     def test_insensibilite_a_la_casse(self):
-        tableau = TableauDeButcher.par_nom('EULER_EXPLICITE')
+        tableau = TableauDeButcher.par_nom('erk1')
         assert isinstance(tableau, TableauDeButcher)
         assert tableau.ordre == 1
 
