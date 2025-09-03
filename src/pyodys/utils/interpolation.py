@@ -2,161 +2,103 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy.interpolate import PPoly
 from typing import Union, Callable
-
-# Assuming this import path is correct based on your project structure
-from ..systemes.EDOs import EDOs
+from pyodys import EDOs
 
 
-def pchipd(x: ArrayLike, y: ArrayLike, d: ArrayLike, xx: ArrayLike = None):
+def hermite_pchipd(x: ArrayLike, y: ArrayLike, d: ArrayLike, xx: ArrayLike = None, extrapolate: bool = False):
     """
-    Piecewise Cubic Hermite Interpolating Polynomial with Derivatives.
+    Piecewise cubic Hermite interpolation using specified derivatives.
 
-    Constructs a piecewise cubic polynomial that interpolates given function
-    values and derivatives at a set of breakpoints.
+    Constructs a cubic Hermite interpolant such that the polynomial
+    passes through given points `y` with derivatives `d`.
 
     Parameters
     ----------
     x : array_like, shape (n,)
         Breakpoints (must be sorted).
-    y : array_like, shape (n,) or (m, n)
-        Function values at x.
-    d : array_like, shape (n,) or (m, n)
-        Derivatives at x.
+    y : array_like, shape (n,) or (n, m)
+        Function values at breakpoints.
+    d : array_like, shape (n,) or (n, m)
+        Derivatives at breakpoints.
     xx : array_like, optional
-        Points at which to evaluate the interpolant. If not provided,
-        a `PPoly` object is returned.
+        Points at which to evaluate the interpolant. If None, returns PPoly object.
+    extrapolate : bool, default False
+        Whether to allow evaluation outside the original interval.
 
     Returns
     -------
-    pp : scipy.interpolate.PPoly or ndarray
-        If `xx` is None, returns a `PPoly` object representing the piecewise
-        polynomial. If `xx` is provided, returns the interpolated values
-        at `xx` as an `ndarray`.
-
-    Raises
-    ------
-    ValueError
-        If input array dimensions do not match requirements.
+    pp : PPoly or ndarray
+        If `xx` is None, returns a PPoly object. Otherwise, returns values at `xx`.
     """
     x = np.asarray(x, dtype=float)
-    y = np.asarray(y, dtype=float)
-    d = np.asarray(d, dtype=float)
+    y = np.atleast_2d(y).astype(float)
+    d = np.atleast_2d(d).astype(float)
 
-    if x.ndim != 1 or len(x) < 2:
-        raise ValueError("x must be a 1D array of length >= 2")
     n = len(x)
+    if x.ndim != 1 or n < 2:
+        raise ValueError("x must be a 1D array of length >= 2")
+    if y.shape[0] != n or d.shape[0] != n:
+        raise ValueError("y and d must have same number of rows as x")
 
-    # Handle y and d dimensions for both single and multiple dimensions
-    if y.ndim == 1 and d.ndim == 1:
-        if len(y) != n or len(d) != n:
-            raise ValueError("y and d must match length of x")
-        y = y.reshape(-1, 1)
-        d = d.reshape(-1, 1)
-    elif y.shape == d.shape and y.shape[0] == n:
-        pass  # Dimensions are already correct
-    else:
-        raise ValueError("y and d must be vectors of length n or matrices of shape (n, m)")
-
-    # Sort x if not already sorted, and re-order y and d accordingly
+    # Ensure sorted
     sort_idx = np.argsort(x)
-    if not np.all(sort_idx == np.arange(n)):
-        x = x[sort_idx]
-        y = y[sort_idx, :]
-        d = d[sort_idx, :]
+    x = x[sort_idx]
+    y = y[sort_idx, :]
+    d = d[sort_idx, :]
 
-    # Calculate differences
     dx = np.diff(x)
     dy = np.diff(y, axis=0)
 
-    # Calculate the coefficients for the cubic polynomial segments
-    # The polynomial is defined as:
-    # a*(x-x_i)^3 + b*(x-x_i)^2 + c*(x-x_i) + d
-    # Coefficients are stored in rows of `coef` for each segment
-    coef = np.zeros((4, n - 1, y.shape[1]), dtype=float)
+    coef = np.zeros((4, n-1, y.shape[1]), dtype=float)
+    coef[3, :, :] = y[:-1, :]                     # constant term
+    coef[2, :, :] = d[:-1, :]                     # linear term
+    coef[1, :, :] = (3*dy/dx[:, None]**2) - (2*d[:-1, :] + d[1:, :])/dx[:, None]  # quadratic
+    coef[0, :, :] = (-2*dy/dx[:, None]**3) + (d[:-1, :] + d[1:, :])/dx[:, None]**2  # cubic
 
-    # d: constant term
-    coef[3, :, :] = y[:-1, :]
-
-    # c: linear term
-    coef[2, :, :] = d[:-1, :]
-
-    # b: quadratic term
-    coef[1, :, :] = (3 * dy / (dx[:, None] ** 2)) - (2 * d[:-1, :] + d[1:, :]) / dx[:, None]
-
-    # a: cubic term
-    coef[0, :, :] = (-2 * dy / (dx[:, None] ** 3)) + (d[:-1, :] + d[1:, :]) / (dx[:, None] ** 2)
-
-    # Create the PPoly object
-    pp = PPoly(coef, x, extrapolate=False)
+    pp = PPoly(coef, x, extrapolate=extrapolate)
 
     if xx is not None:
-        # Evaluate the polynomial at new points if requested
         return pp(xx)
     return pp
 
 
-def hermite_interpolate(xi: ArrayLike, yi: ArrayLike, f: Union[EDOs, Callable[[ArrayLike, ArrayLike], ArrayLike]], xnouveau: ArrayLike):
+def hermite_interpolate(xi: ArrayLike, yi: ArrayLike, f: Union[EDOs, Callable[[ArrayLike, ArrayLike], ArrayLike]], xnew: ArrayLike):
     """
-    Hermite solution interpolation for systems of Ordinary Differential Equations (ODEs).
-
-    This function uses the `pchipd` function to perform Hermite interpolation on a
-    solution to an ODE system, given the solution's values and derivatives at
-    a set of known points.
+    Hermite interpolation of ODE solutions using values and derivatives.
 
     Parameters
     ----------
     xi : array_like, shape (nbx,)
-        Abscissas (e.g., time points) where the solution is known.
+        Abscissas where solution is known.
     yi : array_like, shape (nbx, nbeq)
-        Values of the solution at `xi`. Each row corresponds to a point in `xi`,
-        and each column to a different variable in the ODE system.
-    f : Union[EDOs, Callable[[ArrayLike, ArrayLike], ArrayLike]]
-        The function `f(t, y)` that returns the derivative `dy/dt`. This can be
-        an instance of the `EDOs` class or any callable that accepts a time `t`
-        and a solution array `y`.
-    xnouveau : array_like
-        Points where the interpolated solution is desired.
+        Solution values at `xi`.
+    f : EDOs or callable
+        Function returning derivatives: f(t, y) -> dy/dt.
+    xnew : array_like
+        Points where interpolation is desired.
 
     Returns
     -------
-    yinouveau : ndarray, shape (len(xnouveau), nbeq)
-        The interpolated solution values at the `xnouveau` points.
-
-    Raises
-    ------
-    ValueError
-        If input dimensions do not match or the derivative function `f`
-        returns a value with an incorrect shape.
+    ynew : ndarray, shape (len(xnew), nbeq)
+        Interpolated solution at `xnew`.
     """
     xi = np.asarray(xi, dtype=float)
-    yi = np.asarray(yi, dtype=float)
-    xnouveau = np.asarray(xnouveau, dtype=float)
+    yi = np.atleast_2d(yi).astype(float)
+    xnew = np.asarray(xnew, dtype=float)
 
-    if xi.ndim != 1:
-        raise ValueError("xi must be a 1D array (row vector).")
     nbx = xi.shape[0]
-
     if yi.shape[0] != nbx:
-        raise ValueError("yi must have nbx rows (same length as xi).")
+        raise ValueError("yi must have same number of rows as xi")
     nbeq = yi.shape[1]
 
-    # Compute derivatives at each xi using the provided function f
-    fprimei = np.zeros_like(yi, dtype=float)
-    is_edos_instance = isinstance(f, EDOs)
+    fprimei = np.zeros_like(yi)
+    is_edos = isinstance(f, EDOs)
+
     for i in range(nbx):
-        # The function `f` is expected to return the derivative for a single point
-        if is_edos_instance:
-            derivative_at_point = f.evalue(xi[i], yi[i, :])
-        else:
-            derivative_at_point = f(xi[i], yi[i, :])
+        deriv = f.evalue(xi[i], yi[i, :]) if is_edos else f(xi[i], yi[i, :])
+        deriv = np.atleast_1d(deriv)
+        if deriv.shape[0] != nbeq:
+            raise ValueError(f"Derivative at xi[{i}] has incorrect shape")
+        fprimei[i, :] = deriv
 
-        # Ensure the derivative has the expected shape (nbeq,)
-        derivative_at_point = np.asarray(derivative_at_point)
-        if derivative_at_point.shape not in [(nbeq,), (nbeq, 1)]:
-            raise ValueError(f"f must return a vector of shape ({nbeq},) for given (t,y).")
-        fprimei[i, :] = derivative_at_point.flatten()
-
-    # Call pchipd to perform the interpolation
-    yinouveau = pchipd(xi, yi, fprimei, xnouveau)
-    
-    return yinouveau
+    return hermite_pchipd(xi, yi, fprimei, xnew)

@@ -23,7 +23,7 @@ def wrms_norm(delta, u, atol=1e-12, rtol=1e-6):
 
 
 class SolveurRKAvecTableauDeButcher(object):
-    def __init__(self, tableau_de_butcher=TableauDeButcher.par_nom("rk4"),
+    def __init__(self, tableau_de_butcher=TableauDeButcher.from_name("erk4"),
                  verbose: bool = True,
                  progress_interval_in_time: int = 100.0,
                  max_jacobian_refresh=1,
