@@ -67,7 +67,7 @@ python -m pyodys --list-schemes
 To solve the Lorenz System with a simple command, you can use one of the provided examples The script will automatically handle the initial conditions and visualization.
 
 ```bash
-python -m examples/lorenz_system.py --method dopri5 --final-time 50.0
+python examples/lorenz_system.py --method dopri5 --final-time 50.0
 ```
 
 You can customize the simulation by changing parameters like the method (`--method`), final time (`--final-time`), step size (`--step-size`), and tolerance (`--tolerance`).
