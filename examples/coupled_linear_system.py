@@ -30,16 +30,16 @@ if __name__ == '__main__':
     u_init = [1.0, 1.0]
     systeme = SystemeCouple(t_init, t_final, u_init)
 
-    # Use a SDIRK solver for demonstration
-    solver_sdirk = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'))
-    times, solutions = solver_sdirk.solve(
-        systeme,
-        initial_step_size=0.01,
-        adaptive_time_stepping=True,
-        target_relative_error=1e-6,
-        min_step_size=1e-6,
-        max_step_size=1.0
+    # Using a SDIRK solver
+    solver_sdirk = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'),                             
+                                                initial_step_size = 0.01,
+                                                adaptive_time_stepping = True,
+                                                target_relative_error = 1e-6,
+                                                min_step_size = 1e-6,
+                                                max_step_size = 1.0
     )
+    
+    times, solutions = solver_sdirk.solve( systeme )
 
     # Compute analytical solution and errors
     analytical_solutions = np.array([solution_analytique(t, u_init) for t in times])

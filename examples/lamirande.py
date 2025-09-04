@@ -130,30 +130,25 @@ if __name__ == '__main__':
                               initial_state=Y)
 
     # solver
-    solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('esdirk6'), 
-                                           verbose=True, 
-                                           progress_interval_in_time=1.0, 
+    solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('esdirk6'),                                    
+                                           initial_step_size=1e-10,
+                                           adaptive_time_stepping=True,
+                                           min_step_size=1e-10,
+                                           max_step_size=100,
+                                           target_relative_error=1e-8,
                                            max_jacobian_refresh=1,
-                                           export_interval=100000,
-                                           export_prefix="resultats/lamirande_model")
+                                           verbose=True, 
+                                           progress_interval_in_time=1.0)
 
-    print(TableauDeButcher.from_name('esdirk6'))
     start=time.time()
-    times, solutions = solver.solve(
-        systeme_EDOs=systeme, 
-        initial_step_size=0.0001,
-        adaptive_time_stepping=False,
-        target_relative_error=1e-8,
-        min_step_size=1e-10,
-        max_step_size=100,
-        )
+    times, solutions = solver.solve( systeme_EDOs=systeme )
     Elapsed = time.time() - start
-    print(Elapsed)
-    print("Saving data to CSV...")
-    results = np.column_stack((times, solutions))
-    header = "time,U,V,W,Mj,MA,Nj,NA,Cj,CA,P,Q"
-    np.savetxt('lamirande.csv', results, delimiter=',', header=header, comments='')
-    print("Data saved to lorenz_system.csv")
+    # print(Elapsed)
+    # print("Saving data to CSV...")
+    # results = np.column_stack((times, solutions))
+    # header = "time,U,V,W,Mj,MA,Nj,NA,Cj,CA,P,Q"
+    # np.savetxt('lamirande.csv', results, delimiter=',', header=header, comments='')
+    # print("Data saved to lorenz_system.csv")
 
 # Filter data for t >= 400
 mask = times >= 0.0

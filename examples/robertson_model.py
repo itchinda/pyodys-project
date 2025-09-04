@@ -88,19 +88,16 @@ if __name__ == '__main__':
     system = RobertsonModel(t0, tf, u0)
 
     # solver
-    method = args.method
-    solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name(method))
+    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name(args.method),
+                                           initial_step_size = args.step_size,
+                                           adaptive_time_stepping = args.adaptive_stepping,
+                                           target_relative_error = args.tolerance,
+                                           min_step_size = args.min_step_size,
+                                           max_step_size = args.max_step_size)
 
     # Solve the system
     start=time.time()
-    times, solutions = solver.solve(
-        system,
-        initial_step_size=args.step_size,
-        adaptive_time_stepping=args.adaptive_stepping,
-        target_relative_error=args.tolerance,
-        min_step_size=args.min_step_size,
-        max_step_size=args.max_step_size
-    )
+    times, solutions = solver.solve( system )
     elapsed=time.time()-start
     print(f"Python EDOs runtime: {elapsed:.4f} seconds")
     

@@ -15,7 +15,7 @@ class HIRESModel(EDOs):
 
     def evalue(self, t, u):
         """
-        HIRES stiff system (8 equations).
+        HIRES stiff system (7 equations).
         See: Hairer & Wanner (1996) Solving Ordinary Differential Equations II.
         """
         y = u
@@ -55,11 +55,11 @@ def extract_args():
     parser = argparse.ArgumentParser(description="Solve the HIRES stiff system.")
     parser.add_argument('--method', '-m', 
                         type=str, 
-                        default='sdirk_alexander_21',
+                        default='esdirk6',
                         help='The Runge-Kutta method to use.')
     parser.add_argument('--step-size', '-s', 
                         type=float, 
-                        default=1e-4,
+                        default=1e-8,
                         help='The initial time step size.')
     parser.add_argument('--final-time', '-t', 
                         type=float, 
@@ -67,7 +67,7 @@ def extract_args():
                         help='The final time for the simulation.')
     parser.add_argument('--tolerance', '-tol', 
                         type=float,
-                        default=1e-6,
+                        default=1e-8,
                         help='The target relative error for adaptive time stepping.')
     parser.add_argument('--no-adaptive-stepping', 
                         action='store_false', 
@@ -98,22 +98,19 @@ if __name__ == '__main__':
     tf = args.final_time
     u0 = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0057]
 
-    system = HIRESModel(t0, tf, u0)
+    hires_system = HIRESModel(t0, tf, u0)
 
     # solver
-    method = args.method
-    solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name(method))
+    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name(args.method),
+                                           initial_step_size = args.step_size,
+                                           adaptive_time_stepping = args.adaptive_stepping,
+                                           min_step_size = args.min_step_size,
+                                           max_step_size = args.max_step_size,
+                                           target_relative_error = args.tolerance )
 
     # Solve the system
     start=time.time()
-    times, solutions = solver.solve(
-        system,
-        initial_step_size=args.step_size,
-        adaptive_time_stepping=args.adaptive_stepping,
-        target_relative_error=args.tolerance,
-        min_step_size=args.min_step_size,
-        max_step_size=args.max_step_size
-    )
+    times, solutions = solver.solve( hires_system )
     elapsed=time.time()-start
     print(f"Python HIRES runtime: {elapsed:.4f} seconds")
 

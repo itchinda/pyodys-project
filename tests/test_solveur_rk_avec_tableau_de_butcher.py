@@ -27,12 +27,10 @@ class ExponentialDecay(EDOs):
 def test_solver_runs_and_matches_exact_solution(method):
     system = ExponentialDecay()
     tableau = TableauDeButcher.par_nom(method)
-    solver = SolveurRKAvecTableauDeButcher(tableau)
+    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher=tableau, 
+                                           initial_step_size=0.01)
 
-    # Run with fixed step size
-    temps, solutions = solver.resoud(system, initial_step_size=0.01)
-
-    # Exact solution at t_final
+    temps, solutions = solver.resoud(system)
     exact = np.exp(-system.t_final)
 
     assert np.isclose(solutions[-1][0], exact, rtol=1e-2), \
@@ -44,11 +42,15 @@ def test_solver_runs_and_matches_exact_solution(method):
 def test_solver_adaptive_step_runs(method_name):
     """Test adaptive stepping for schemes that support it."""
     tableau = TableauDeButcher.par_nom(method_name)
-    solver = SolveurRKAvecTableauDeButcher(tableau)
+    solver = SolveurRKAvecTableauDeButcher(tableau,
+                                           initial_step_size=1.0e-5,
+                                           adaptive_time_stepping=True,
+                                           min_step_size=1e-6,
+                                           max_step_size=0.5,
+                                           target_relative_error=1e-4)
     system = ExponentialDecay()
 
-    temps, solutions = solver.resoud(system, initial_step_size=1.0e-5, adaptive_time_stepping=True,
-                                     target_relative_error=1e-4, min_step_size=1e-6, max_step_size=0.5)
+    temps, solutions = solver.resoud(system)
 
     # Check shapes
     assert solutions.shape[0] == len(temps)
@@ -62,21 +64,15 @@ def test_invalid_tableau_type_raises():
     with pytest.raises(TypeError):
         SolveurRKAvecTableauDeButcher(tableau_de_butcher="not_a_tableau")
 
-# Define Robertson System
+# Define a stiff problem
 class StiffProblem(EDOs):
     def __init__(self, t_init, t_final, initial_state):
-        # Call the parent constructor
         super().__init__(t_init, t_final, initial_state)
         
     def evalue(self, t, u):
-        # u, state at time t: u = [x, y, z]
         x, y = u
-        
-        # Define the derivatives dx/dt, dy/dt, dz/dt
         dxdt = -100.0*x + 99.0*y
         dydt = -y
-        
-        # Returns the derivatives in a Numpy Array
         return np.array([dxdt, dydt])
     
     def jacobien(self, t, u):
@@ -95,14 +91,19 @@ def exact_solution(t):
 def test_step_size_adjustment_time_limits(method_name):
     """Test that step size is clipped to min/max limits."""
     tableau = TableauDeButcher.par_nom(method_name)
-    solver = SolveurRKAvecTableauDeButcher(tableau, progress_interval_in_time=1.0, max_jacobian_refresh=2)
+    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher=tableau,
+                                           initial_step_size=1e-4, 
+                                           adaptive_time_stepping=True,
+                                           min_step_size=1e-8, 
+                                           max_step_size=1.0,
+                                           target_relative_error=1e-8, 
+                                           progress_interval_in_time=1.0, 
+                                           max_jacobian_refresh=1)
     
 
     system = StiffProblem(t_init=0.0, t_final=1.0, initial_state=[1.0,2.0])
-    temps, solutions = solver.resoud(system, initial_step_size=1e-4, adaptive_time_stepping=True,
-                                     target_relative_error=1e-8, min_step_size=1e-8, max_step_size=1.0)
+    temps, solutions = solver.resoud(system)
 
-    # Check that all steps are >= min_step_size and <= max_step_size
     steps = np.diff(temps)
     assert np.all(steps >= 1e-8)
     assert np.all(steps <= 1.0)
@@ -112,12 +113,18 @@ def test_step_size_adjustment_time_limits(method_name):
 def test_solver_adaptive_step_runs_and_matches_exact_solution(method_name):
     """Test that step size is clipped to min/max limits."""
     tableau = TableauDeButcher.par_nom(method_name)
-    solver = SolveurRKAvecTableauDeButcher(tableau, progress_interval_in_time=1.0, max_jacobian_refresh=2)
+    solver = SolveurRKAvecTableauDeButcher(tableau,
+                                           initial_step_size=1e-4,
+                                           adaptive_time_stepping=True,
+                                           min_step_size=1e-8, 
+                                           max_step_size=1.0,
+                                           target_relative_error=1e-8, 
+                                           progress_interval_in_time=1.0, 
+                                           max_jacobian_refresh=1)
     
 
     system = StiffProblem(t_init=0.0, t_final=1.0, initial_state=[1.0,2.0])
-    temps, solutions = solver.resoud(system, initial_step_size=1e-4, adaptive_time_stepping=True,
-                                     target_relative_error=1e-8, min_step_size=1e-8, max_step_size=1.0)
+    temps, solutions = solver.resoud(system)
 
     for i, t in enumerate(temps):
             numerical_solution = solutions[i]

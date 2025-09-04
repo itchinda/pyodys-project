@@ -43,7 +43,7 @@ if __name__ == '__main__':
                         help='The Runge-Kutta method to use.')
     parser.add_argument('--step-size', '-s', 
                         type=float, 
-                        default=1e-4,
+                        default=1e-8,
                         help='The initial time step size.')
     parser.add_argument('--final-time', '-t', 
                         type=float, 
@@ -75,21 +75,19 @@ if __name__ == '__main__':
     t0 = 0.0
     tf = args.final_time
     u0 = [0.0, 1.0, 0.0]
-    systeme = LorenzSystem(t_init=t0, 
+    lorenz_system = LorenzSystem(t_init=t0, 
                            t_final=args.final_time, 
                            initial_state=u0)
 
     # solver
-    solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name(args.method))
+    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name(args.method),
+                                           initial_step_size=args.step_size, 
+                                           adaptive_time_stepping=args.adaptive_stepping,
+                                           target_relative_error=args.tolerance, 
+                                           min_step_size=args.min_step_size, 
+                                           max_step_size=args.max_step_size)
 
-    times, solutions = solver.solve(
-        systeme_EDOs=systeme, 
-        initial_step_size=args.step_size, 
-        adaptive_time_stepping=args.adaptive_stepping,
-        target_relative_error=args.tolerance, 
-        min_step_size=args.min_step_size, 
-        max_step_size=args.max_step_size
-        )
+    times, solutions = solver.solve( systeme_EDOs = lorenz_system )
 
     if args.save_csv:
         print("Saving data to CSV...")
