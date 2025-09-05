@@ -2,7 +2,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy.interpolate import PPoly
 from typing import Union, Callable
-from pyodys import EDOs
+from pyodys import ODEProblem
 
 
 def hermite_pchipd(x: ArrayLike, y: ArrayLike, d: ArrayLike, xx: ArrayLike = None, extrapolate: bool = False):
@@ -62,7 +62,7 @@ def hermite_pchipd(x: ArrayLike, y: ArrayLike, d: ArrayLike, xx: ArrayLike = Non
     return pp
 
 
-def hermite_interpolate(xi: ArrayLike, yi: ArrayLike, f: Union[EDOs, Callable[[ArrayLike, ArrayLike], ArrayLike]], xnew: ArrayLike):
+def hermite_interpolate(xi: ArrayLike, yi: ArrayLike, f: Union[ODEProblem, Callable[[ArrayLike, ArrayLike], ArrayLike]], xnew: ArrayLike):
     """
     Hermite interpolation of ODE solutions using values and derivatives.
 
@@ -72,7 +72,7 @@ def hermite_interpolate(xi: ArrayLike, yi: ArrayLike, f: Union[EDOs, Callable[[A
         Abscissas where solution is known.
     yi : array_like, shape (nbx, nbeq)
         Solution values at `xi`.
-    f : EDOs or callable
+    f : ODEProblem or callable
         Function returning derivatives: f(t, y) -> dy/dt.
     xnew : array_like
         Points where interpolation is desired.
@@ -92,10 +92,10 @@ def hermite_interpolate(xi: ArrayLike, yi: ArrayLike, f: Union[EDOs, Callable[[A
     nbeq = yi.shape[1]
 
     fprimei = np.zeros_like(yi)
-    is_edos = isinstance(f, EDOs)
+    is_ODEProblem = isinstance(f, ODEProblem)
 
     for i in range(nbx):
-        deriv = f.evalue(xi[i], yi[i, :]) if is_edos else f(xi[i], yi[i, :])
+        deriv = f.evalue(xi[i], yi[i, :]) if is_ODEProblem else f(xi[i], yi[i, :])
         deriv = np.atleast_1d(deriv)
         if deriv.shape[0] != nbeq:
             raise ValueError(f"Derivative at xi[{i}] has incorrect shape")

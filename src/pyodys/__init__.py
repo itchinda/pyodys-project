@@ -1,4 +1,4 @@
-from .solveurs.runge_kutta.TableauDeButcher import TableauDeButcher
-from .solveurs.runge_kutta.SolveurRKAvecTableauDeButcher import SolveurRKAvecTableauDeButcher
-from .systemes.EDOs import EDOs 
+from .solveurs.runge_kutta.ButcherTableau import ButcherTableau
+from .solveurs.runge_kutta.RKSolverWithButcherTableau import RKSolverWithButcherTableau
+from .systemes.ODEProblem import ODEProblem 
 from .utils.interpolation import *

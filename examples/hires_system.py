@@ -3,13 +3,13 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from pyodys import EDOs
-from pyodys import TableauDeButcher
-from pyodys import SolveurRKAvecTableauDeButcher
+from pyodys import ODEProblem
+from pyodys import ButcherTableau
+from pyodys import RKSolverWithButcherTableau
 
 
 # Define HIRES System
-class HIRESModel(EDOs):
+class HIRESModel(ODEProblem):
     def __init__(self, t_init, t_final, initial_state):
         super().__init__(t_init, t_final, initial_state)
 
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     hires_system = HIRESModel(t0, tf, u0)
 
     # solver
-    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name(args.method),
+    solver = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name(args.method),
                                            initial_step_size = args.step_size,
                                            adaptive_time_stepping = args.adaptive_stepping,
                                            min_step_size = args.min_step_size,

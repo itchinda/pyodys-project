@@ -17,7 +17,7 @@ The solver is built to handle both **explicit and implicit Runge–Kutta methods
   Uses the **Newton–Raphson method** to solve the nonlinear systems that arise in implicit ODEs, making it suitable for stiff problems.
 
 - **Flexible System Definition**:  
-  Define any ODE system by inheriting from the `EDOs` abstract class. A fallback **numerical Jacobian** (central finite differences) is provided automatically.
+  Define any ODE system by inheriting from the `ODEProblem` abstract class. A fallback **numerical Jacobian** (central finite differences) is provided automatically.
 
 - **Analytical Jacobian Overrides**:  
   For improved performance and accuracy, users can override the default numerical Jacobian with a hand-derived one.
@@ -92,12 +92,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Using the top-level imports from the installed package
-from pyodys import EDOs
+from pyodys import ODEProblem
 from pyodys import TableauDeButcher
-from pyodys import SolveurRKAvecTableauDeButcher
+from pyodys import RKSolverWithButcherTableau
 
 # Define coupled linear system
-class CoupledLinearSystem(EDOs):
+class CoupledLinearSystem(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
     
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     ode_system = CoupledLinearSystem(t_init, t_final, u_init)
 
     # Use a SDIRK solver for demonstration
-    solver_sdirk = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'),
+    solver_sdirk = RKSolverWithButcherTableau(tableau_de_butcher = TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'),
                                                  initial_step_size = 0.01,
                                                  adaptive_time_stepping=True,
                                                  min_step_size=1e-6,

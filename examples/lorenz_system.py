@@ -1,12 +1,12 @@
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from pyodys import EDOs
-from pyodys import TableauDeButcher
-from pyodys import SolveurRKAvecTableauDeButcher
+from pyodys import ODEProblem
+from pyodys import ButcherTableau
+from pyodys import RKSolverWithButcherTableau
 
 # Define Lorenz System
-class LorenzSystem(EDOs):
+class LorenzSystem(ODEProblem):
     def __init__(self, t_init, t_final, initial_state, sigma=10, rho=28, beta=2.667):
         super().__init__(t_init, t_final, initial_state)
         # Specific Lorenz System Parameters
@@ -80,14 +80,14 @@ if __name__ == '__main__':
                            initial_state=u0)
 
     # solver
-    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name(args.method),
+    solver = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name(args.method),
                                            initial_step_size=args.step_size, 
                                            adaptive_time_stepping=args.adaptive_stepping,
                                            target_relative_error=args.tolerance, 
                                            min_step_size=args.min_step_size, 
                                            max_step_size=args.max_step_size)
 
-    times, solutions = solver.solve( systeme_EDOs = lorenz_system )
+    times, solutions = solver.solve( ode_problem = lorenz_system )
 
     if args.save_csv:
         print("Saving data to CSV...")

@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 
-class EDOs(ABC):
+class ODEProblem(ABC):
     """Abstract base class for systems of Ordinary Differential Equations (ODEs).
 
     Any subclass must implement the :meth:`evalue` method, which defines the ODE system.
@@ -15,7 +15,7 @@ class EDOs(ABC):
         delta (float): Perturbation used for numerical Jacobian approximation.
     """
 
-    def __init__(self, t_init: float, t_final: float, initial_state: ArrayLike):
+    def __init__(self, t_init: float, t_final: float, initial_state: ArrayLike, delta: float = 1e-5, jacobian_is_constant : bool = False):
         """Initialize an ODE system.
 
         Args:
@@ -23,10 +23,12 @@ class EDOs(ABC):
             t_final (float): Final simulation time. Must be strictly greater than `t_init`.
             initial_state (ArrayLike): Initial state vector of the system.
                 Must be convertible to a 1D NumPy array of floats.
+            delta (float, optional): Perturbation for finite differences. Defaults to 1e-5.
 
         Raises:
             ValueError: If `t_final <= t_init`.
-            ValueError: If `initial_state` is empty.
+            ValueError: If `initial_state` is empty or not 1D.
+            ValueError: If `t_init` or `t_final` are not real scalars.
         """
         # Validate types for t_init and t_final
         if not np.isscalar(t_init) or not np.isreal(t_init):
@@ -35,14 +37,20 @@ class EDOs(ABC):
             raise ValueError("t_final must be a real numeric scalar.")
         if t_final <= t_init:
             raise ValueError("t_final must be strictly greater than t_init.")
-        
+
         # Validate initial_state
-        self.initial_state = np.array(initial_state, dtype=np.float64)
+        self.initial_state = np.atleast_1d(np.array(initial_state, dtype=np.float64))
+        if self.initial_state.ndim != 1:
+            raise ValueError("initial_state must be a 1D array.")
         if self.initial_state.size == 0:
             raise ValueError("initial_state must be a non-empty array.")
+
+        # Store parameters
         self.t_init = float(t_init)
         self.t_final = float(t_final)
-        self.delta = 1e-5
+        self.delta = float(delta)
+        self.jacobian_is_constant = jacobian_is_constant
+
 
 
     @abstractmethod

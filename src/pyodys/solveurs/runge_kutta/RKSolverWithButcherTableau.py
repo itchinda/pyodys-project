@@ -1,0 +1,615 @@
+from ...systemes.ODEProblem import ODEProblem
+from .ButcherTableau import ButcherTableau
+import numpy as np
+from scipy.linalg import lu_factor, lu_solve, LinAlgError
+from scipy.sparse.linalg import splu
+from scipy.sparse import csr_matrix, identity, isspmatrix
+import csv
+import os
+
+
+class PyOdysError(RuntimeError):
+    """Exception raised when PyOdys fails to solve a problem."""
+    def __init__(self, message):
+        super().__init__(message)
+
+
+def wrms_norm(delta, u, atol=1e-12, rtol=1e-6):
+    """
+    Weighted Root Mean Square norm.
+    delta : Newton update vector
+    u : current Newton iterate
+    """
+    scale = atol + rtol * np.abs(u)
+    return np.sqrt(np.mean((delta / scale) ** 2))
+
+
+class RKSolverWithButcherTableau(object):
+    """
+    A Runge-Kutta solver for ordinary differential equations (ODEs) that
+    can handle both explicit and implicit schemes. It supports adaptive
+    time-stepping and efficient handling of sparse or dense Jacobians.
+    """
+    def __init__(self, butcher_tableau=ButcherTableau.from_name("erk4"),
+                 initial_step_size: float = None,
+                 adaptive_time_stepping: bool = False,
+                 min_step_size: float = None, 
+                 max_step_size: float = None,
+                 max_number_of_adaptive_steps = 1000000,
+                 target_relative_error: float = None,
+                 max_jacobian_refresh=1,
+                 newton_atol = 1e-10,
+                 newton_rtol = 1e-8,
+                 newton_nmax = 10,
+                 verbose: bool = True,
+                 progress_interval_in_time: int = None,
+                 export_interval: int = None,
+                 export_prefix=None,
+                 auto_sparse_jacobian=True,
+                 sparse_threshold: int = 20):
+        """Initialize a Runge-Kutta solver with a Butcher tableau.
+
+        Args:
+            butcher_tableau (ButcherTableau): The Butcher tableau that defines the specific RK method to use. For adaptive methods, the tableau must provide an embedded solution.
+            initial_step_size (float): The initial time step (Deltat). This is the fixed step size for non-adaptive mode.
+            adaptive_time_stepping (bool, optional): If True, the solver will adjust the step size to meet the specified target_relative_error. Defaults to False.
+            min_step_size (float, optional): The minimum allowed step size when using adaptive time-stepping. Required if adaptive_time_stepping is True.
+            max_step_size (float, optional): The maximum allowed step size when using adaptive time-stepping. Required if adaptive_time_stepping is True.
+            target_relative_error (float, optional): The target relative error for adaptive step-size control. Required if adaptive_time_stepping is True.
+            max_jacobian_refresh (int, optional): The maximum number of times to recompute and re-factorize the Jacobian within a single time step's implicit stages before giving up.
+            newton_atol (float, optional): The absolute tolerance for Newton's method convergence.
+            newton_rtol (float, optional): The relative tolerance for Newton's method convergence.
+            newton_nmax (int, optional): The maximum number of iterations for Newton's method per Jacobian refresh.
+            verbose (bool, optional): If True, the solver prints progress and debug information.
+            progress_interval_in_time (float, optional): The time interval at which to print progress updates.
+            export_interval (int, optional): The number of steps between data exports to CSV files. If None, no export is performed.
+            export_prefix (str, optional): The file path prefix for exported CSV files.
+            auto_sparse_jacobian (bool, optional): A flag to enable or disable automatic sparsity detection.
+            sparse_threshold (int, optional): The number of equations a system must have to trigger the automatic sparsity detection.
+
+        Raises:
+            TypeError: If configuration is inconsistent.
+            ValueError: If required arguments are missing.
+        """
+        if not isinstance(butcher_tableau, ButcherTableau):
+            raise TypeError("butcher_tableau must be an object of class ButcherTableau.")
+        if initial_step_size==None:
+            raise ValueError("You must specify the time step or the initial time step (if you choose adaptive time stepping).")
+        if adaptive_time_stepping and (min_step_size==None or max_step_size==None):
+            raise TypeError("Since you choose adaptive time stepping, you must specify the minimal and maximal time steps.")
+        if adaptive_time_stepping and target_relative_error == None:
+            raise TypeError("Since you choose adaptive time stepping, you must specify the the target relative error.")
+        
+        self.butcher_tableau = butcher_tableau
+        self.initial_step_size = initial_step_size
+        self.adaptive_time_stepping = adaptive_time_stepping
+        self.min_step_size = min_step_size
+        self.max_step_size = max_step_size
+        self.max_number_of_adaptive_steps = max_number_of_adaptive_steps
+        self.target_relative_error = target_relative_error
+        self.max_jacobian_refresh = max_jacobian_refresh
+        self.verbose = verbose
+        self.progress_interval_in_time = progress_interval_in_time
+        self.export_interval = export_interval
+        self.export_prefix = export_prefix
+        self.newton_atol = newton_atol
+        self.newton_rtol = newton_rtol
+        self.newton_nmax = newton_nmax
+        self.auto_sparse_jacobian = auto_sparse_jacobian
+        self.sparse_threshold = sparse_threshold
+
+        self.export_counter = 0
+        self.schema_explicite = self.butcher_tableau.is_explicit
+        self.with_prediction = self.butcher_tableau.with_prediction
+        self._sparsity_checked = False
+        self._jacobian_is_sparse = None
+        self._I_dense = None
+        self._I_sparse = None
+        self._jacobian_csr = None
+        self._jacobian_dense = None
+        self._use_built_in_python_list = False
+
+
+
+    def _print_verbose(self, message):
+        """Print a message if verbose mode is enabled.
+
+        Args:
+            message (str): Message to display.
+        """
+        if self.verbose:
+            print(message)
+
+    def _print_pyodys_error_message(self, message):
+        """Print a PyOdys error message regardless of verbosity.
+
+        Args:
+            message (str): Error message to display.
+        """
+        print(message)
+
+    def _export(self, times, solutions: np.ndarray):
+        """Export simulation results to a CSV file.
+
+        Args:
+            times (np.ndarray): Array of time points.
+            solutions (np.ndarray): Array of states corresponding to `times`.
+
+        Notes:
+            Files are named using the format ``<prefix>_<counter>.csv``.
+        """
+        if self.export_prefix is None:
+            return
+        self.export_counter += 1
+        filename = f"{self.export_prefix}_{self.export_counter:05d}.csv"
+        dirpath = os.path.dirname(filename)
+        if dirpath:  # only create if there is a directory component
+            os.makedirs(dirpath, exist_ok=True)
+        n_vars = solutions.shape[1] if solutions.ndim > 1 else 1
+        with open(filename, mode="w", newline="") as f:
+            writer = csv.writer(f)
+            header = ["t"] + [f"u{i}" for i in range(n_vars)]
+            writer.writerow(header)
+            for t, u in zip(times, solutions):
+                row = [t] + (u.tolist() if n_vars > 1 else [u])
+                writer.writerow(row)
+        self._print_verbose(f"Exported {len(times)} steps to {filename}")
+
+    def _detect_jacobian_sparsity(self, F: ODEProblem, tn: float, U_np: np.ndarray):
+        """
+        Detect whether the Jacobian provided by F is sparse or dense.
+        Initialize identity matrices accordingly.
+        If the Jacobian is constant, store it once for reuse.
+
+        Args:
+            self: The instance of the RKSolverWithButcherTableau class.
+            F (ODEProblem): The ODEProblem object. This object is expected to have a method jacobien(t, u) that returns the Jacobian matrix of the ODE system.
+            tn (float): The current time, used to evaluate the Jacobian at a specific point in the simulation.
+            U_np (numpy.ndarray): The current state vector, used to evaluate the Jacobian at a specific state.
+        """
+        # Compute Jacobian at initial state
+        J = F.jacobien(tn, U_np)
+
+        if isspmatrix(J):
+            # --- Sparse Jacobian
+            self._jacobian_is_sparse = True
+            self._jacobian_csr = J.tocsr()
+
+            n_eq = J.shape[0]
+            self._I_sparse = identity(n_eq, format="csr")
+
+            if self.verbose:
+                density = self._jacobian_csr.nnz / (n_eq * n_eq)
+                print(f"Detected sparse Jacobian: size={n_eq}x{n_eq}, density={density:.3e}")
+
+        else:
+            # --- Dense Jacobian
+            self._jacobian_is_sparse = False
+            self._jacobian_dense = np.asarray(J, dtype=float)
+
+            n_eq = self._jacobian_dense.shape[0]
+            self._I_dense = np.eye(n_eq)
+
+            if self.verbose:
+                print(f"Detected dense Jacobian: size={n_eq}x{n_eq}")
+
+        # If Jacobian is constant, we can reuse it forever
+        if F.jacobian_is_constant:
+            if self.verbose:
+                print("Jacobian marked as constant → will be reused across all steps.")
+        else:
+            if self.verbose:
+                print("Jacobian marked as variable → will be recomputed at each stage refresh.")
+
+
+    def _perform_single_rk_step(
+            self, F: ODEProblem, tn: float, delta_t: float, U_np: np.ndarray
+        ):
+        """Perform one Runge-Kutta step based on the Butcher tableau.
+        
+        Args:
+            self: The instance of the RKSolverWithButcherTableau class.
+            F: The ODEProblem object representing the ODE system.
+            tn (float): The current time point, tn.
+            delta_t (float): The time step size, Δt.
+            U_np (numpy.ndarray): The state vector at the current time, u(tn).
+
+        Returns:
+            tuple: A tuple containing:
+                - U_n_plus_1 (numpy.ndarray): The computed solution at the next time step, u(tn+1).
+                - U_pred (numpy.ndarray): An approximation of the solution used for error estimation in adaptive stepping. If the method doesn't support an embedded solution, this will be a zero array.
+                - newton_not_happy (bool): A flag that is True if Newton's method failed to converge for any of the implicit stages, and False otherwise.
+        
+        """
+
+        n_stages = self.butcher_tableau.n_stages
+        n_eq = len(U_np)
+
+        a = self.butcher_tableau.A
+        c = self.butcher_tableau.C
+
+        if self.with_prediction:
+            b = self.butcher_tableau.B[0, :]
+            d = self.butcher_tableau.B[1, :]
+        else:
+            b = self.butcher_tableau.B
+            d = np.zeros_like(b)
+
+        newton_not_happy = False
+        U_chap = np.zeros((n_eq, n_stages))
+        value_f = np.zeros((n_eq, n_stages))
+
+        newton_nmax = self.newton_nmax
+        newton_atol = self.newton_atol
+        newton_rtol = self.newton_rtol
+
+        U_n = np.copy(U_np)
+        U_pred = np.copy(U_np) if self.with_prediction else np.zeros_like(U_np)
+
+        # --- Explicit scheme → no Newton iterations
+        if self.schema_explicite:
+            for k in range(n_stages):
+                tn_k = tn + c[k] * delta_t
+                U_chap[:, k] = U_np + np.sum(a[k, :k] * value_f[:, :k], axis=1)
+                value_f[:, k] = delta_t * F.evalue(tn_k, U_chap[:, k])
+                U_n += b[k] * value_f[:, k]
+                if self.with_prediction:
+                    U_pred += d[k] * value_f[:, k]
+            return U_n, U_pred, newton_not_happy
+        
+        # --- Implicit scheme → Newton iterations
+        for k in range(n_stages):
+            U_chap_k = U_np + np.sum(a[k, :k] * value_f[:, :k], axis=1)
+            if a[k, k] == 0.0:  # no implicit coupling
+                tn_k = tn + c[k] * delta_t
+                U_chap[:, k] = U_chap_k
+                value_f[:, k] = delta_t * F.evalue(tn_k, U_chap[:, k])
+                U_n += b[k] * value_f[:, k]
+                if self.with_prediction:
+                    U_pred += d[k] * value_f[:, k]
+                continue
+
+            # --- Implicit stage: Newton solve
+            tn_k = tn + c[k] * delta_t
+            delta_t_x_akk = delta_t * a[k, k]
+            U_newton = np.copy(U_chap_k)
+            success = False
+            for refresh in range(self.max_jacobian_refresh + 1):
+                # recompute Jacobian if not constant
+                if not F.jacobian_is_constant:
+                    J = F.jacobien(tn_k, U_newton)
+                    if self._jacobian_is_sparse:
+                        self._jacobian_csr = J.tocsr() if isspmatrix(J) else csr_matrix(J)
+                    else:
+                        self._jacobian_dense = J
+                # assemble system matrix
+                if self._jacobian_is_sparse:
+                    A_sparse = self._I_sparse - delta_t_x_akk * self._jacobian_csr
+                    LU = splu(A_sparse.tocsc())
+                    solver = LU.solve
+                else:
+                    A_dense = self._I_dense - delta_t_x_akk * self._jacobian_dense
+                    LU_piv = lu_factor(A_dense)
+                    solver = lambda rhs: lu_solve(LU_piv, rhs)
+                # Newton iterations
+                for iteration_newton in range(newton_nmax):
+                    residu = U_newton - (U_chap_k + delta_t_x_akk * F.evalue(tn_k, U_newton))
+                    try:
+                        delta = solver(residu)
+                    except (LinAlgError, RuntimeError, ValueError) as e:
+                        self._print_verbose(f"Linear solve failed at stage {k}: {e}")
+                        newton_not_happy = True
+                        return U_n, U_pred, newton_not_happy
+                    
+                    U_newton -= delta
+                    if wrms_norm(delta, U_newton, newton_atol, newton_rtol) < 1.0:
+                        success = True
+                        break
+
+                if success:
+                    break
+
+            if not success:
+                newton_not_happy = True
+                self._print_verbose(f"Newton failed at stage {k} after Jacobian refreshes")
+                return U_n, U_pred, newton_not_happy
+            # store stage result
+            U_chap[:, k] = U_newton
+            value_f[:, k] = delta_t * F.evalue(tn_k, U_newton)
+            U_n += b[k] * value_f[:, k]
+            if self.with_prediction:
+                U_pred += d[k] * value_f[:, k]
+        return U_n, U_pred, newton_not_happy
+
+
+    def solve(self, ode_problem: ODEProblem):
+        """
+        Solves an ODE system using either fixed or adaptive time stepping.
+
+        Args:
+            ode_problem (ODEProblem): ODE system to integrate.
+
+        Returns:
+            tuple: A tuple containing arrays of time points and corresponding states.
+                   Returns `None` if `export_interval` is set.
+
+        Raises:
+            PyOdysError: If the solver encounters a fatal error, such as repeated Newton failures.
+        """
+    
+        if self._jacobian_is_sparse is None:
+            self._detect_jacobian_sparsity(ode_problem, ode_problem.t_init, ode_problem.initial_state)
+
+        # compute the jacobian only once if constant!
+        if ode_problem.jacobian_is_constant:
+            if self._jacobian_is_sparse == True:
+                J = ode_problem.jacobien(ode_problem.t_init, ode_problem.initial_state)
+                if isspmatrix(J):
+                    self._jacobian_csr = J.tocsr()
+                else:
+                    self._jacobian_csr = csr_matrix(J)
+            else:
+                self._jacobian_dense = ode_problem.jacobien(ode_problem.t_init, ode_problem.initial_state)
+
+        if (not self.butcher_tableau.with_prediction) and self.adaptive_time_stepping:
+            self._print_verbose(
+                "Warning: The selected solver does not support adaptive time stepping. Using fixed time steps instead. ⚠️"
+            )
+            self.adaptive_time_stepping = False
+
+        if not self.adaptive_time_stepping:
+            return self._solve_with_fixed_step_size(ode_problem, self.initial_step_size)
+
+        U_courant = np.copy(ode_problem.initial_state)
+        current_time = ode_problem.t_init
+        max_number_of_adaptive_steps = self.max_number_of_adaptive_steps
+        if self.progress_interval_in_time == None:
+            self.progress_interval_in_time = (ode_problem.t_final - ode_problem.t_init) / 100.0
+
+        next_progress_in_time = ode_problem.t_init + self.progress_interval_in_time
+
+        try:
+            if self.export_interval:
+                times = np.empty(self.export_interval+1, dtype=float)
+                solutions = np.empty((self.export_interval+1, len(ode_problem.initial_state)), dtype=float)
+            else :
+                times = np.empty(max_number_of_adaptive_steps+1, dtype=float)
+                solutions = np.empty((max_number_of_adaptive_steps+1, len(ode_problem.initial_state)), dtype=float)
+            times[0] = ode_problem.t_init
+            solutions[0,:] = np.copy(U_courant)
+            self._print_verbose("Successfully pre-allocated memory for the solution array.")
+        except MemoryError:
+            message = (
+                "Memory allocation failed. Using the built-in python list. May slow down the solver performance..."
+                "Consider enabling the export mode by setting 'export_interval' and 'export_prefix in the solver's"
+                "constructor for a better performance."
+            )
+            self._print_verbose(message)
+            self._use_built_in_python_list = True
+            times = [ode_problem.t_init]
+            solutions = [ode_problem.initial_state]
+
+        t_final = ode_problem.t_final
+        step_size = self.initial_step_size
+        order = self.butcher_tableau.ordre
+
+        number_of_time_steps = 0
+        newton_failure_count = 0
+        max_newton_failures = 10
+
+        k = 0
+        while current_time < t_final and number_of_time_steps < max_number_of_adaptive_steps:
+            # tronquer pour ne pas dépasser t_final
+            step_size = min(step_size, t_final - current_time)
+
+            U_n_plus_1, U_pred, newton_not_happy = \
+                self._perform_single_rk_step(
+                    ode_problem, current_time, step_size, U_courant
+                )
+
+            if newton_not_happy:
+                newton_failure_count += 1
+                self._print_verbose(
+                    f"Newton failed at t = {current_time:.4f}. "
+                    f"Reducing step size and retrying. Failure count: {newton_failure_count}"
+                )
+                step_size = max(step_size / 2.0, self.min_step_size)
+                if newton_failure_count >= max_newton_failures:
+                    message = (
+                        f"Maximum consecutive Newton failures ({max_newton_failures}) reached. "
+                        "Stopping the simulation."
+                    )
+                    self._print_verbose(message)
+                    raise PyOdysError(message)
+                continue  # retry immediately at same time
+
+            # succès Newton
+            newton_failure_count = 0
+
+            new_step_size, step_accepted = self._check_step_size(
+                U_n_plus_1, U_pred, step_size, self.target_relative_error, order,
+                self.min_step_size, self.max_step_size, current_time, t_final
+            )
+
+            if step_accepted:
+                U_courant = U_n_plus_1
+                current_time += step_size
+                if self._use_built_in_python_list:
+                    times.append(current_time)
+                    solutions.append(np.copy(U_courant))
+                else:
+                    times[k+1] = current_time
+                    solutions[k+1, :] = np.copy(U_courant)
+                step_size = new_step_size
+                number_of_time_steps += 1
+                k += 1
+
+                if self.export_interval and k == self.export_interval:
+                    self._export(times[:k], solutions[:k, :])
+                    times[0] = times[k]
+                    solutions[0, :] = np.copy(solutions[k, :])
+                    k = 0
+
+                if current_time >= next_progress_in_time:
+                    self._print_verbose(
+                        f"Time step #{number_of_time_steps} completed. Current time: {current_time:.4f}"
+                    )
+                    next_progress_in_time += self.progress_interval_in_time
+
+            else:
+                self._print_verbose(
+                    f"Time step {step_size:.4e} rejected at t = {current_time:.4f}. "
+                    f"Retrying with step size: {new_step_size:.4e}"
+                )
+                step_size = new_step_size
+
+        if self.export_interval:
+            if k > 0:
+                self._export(times[:k+1], solutions[:k+1, :])
+            print(f"Simulation completed. The results have been saved to {self.export_prefix}*.csv")
+            return None
+        self._print_verbose(
+            f"The total number of time steps required to reach t_final = {t_final} is {number_of_time_steps}."
+        )
+        return np.array(times[:number_of_time_steps+1], dtype=float), np.array(solutions[:number_of_time_steps+1], dtype=float)
+
+
+    def _check_step_size(self, U_approx : np.ndarray, U_pred : np.ndarray, step_size : float, target_relative_error : float,
+                          order : int, min_step_size : float, max_step_size : float, current_time : float, t_final : float):
+        """Validate and adapt the time step size based on error estimates.
+
+        Args:
+            U_approx (np.ndarray): Computed solution.
+            U_pred (np.ndarray): Predictor solution.
+            step_size (float): Current time step.
+            target_relative_error (float): Target relative error.
+            order (int): Order of the RK method.
+            min_step_size (float): Minimum allowed time step.
+            max_step_size (float): Maximum allowed time step.
+            current_time (float): Current simulation time.
+            t_final (float): Final simulation time.
+
+        Returns:
+            tuple:
+                - float: New time step size.
+                - bool: True if current step is accepted, False otherwise.
+        """
+        alpha = 0.1
+        beta = 0.9
+        eps = 1e-12
+        # WRMS-like erreur
+        # scale = 1e-12 + 1e-6 * np.maximum(np.max(np.abs(U_approx)), np.max(np.abs(U_pred)))
+        # err = np.sqrt(np.mean(((U_approx - U_pred) / scale) ** 2))
+        # step_accepted = err <= (1.0 + alpha)
+
+        # err = wrms_norm(U_approx - U_pred, U_pred, rtol=target_relative_error)
+        # step_accepted = err < 1.0
+
+        #err = np.linalg.norm(U_approx - U_pred, 2) / (np.linalg.norm( U_pred, 2) + eps)
+        err = np.linalg.norm((U_approx - U_pred) / (np.abs(U_pred)+1e-12), ord=2) #/ (np.linalg.norm( U_pred, 2) + eps)
+        step_accepted = err < (1 + alpha) * target_relative_error
+        new_step_size = beta * step_size * (target_relative_error / max(err, eps)) ** (1.0 / (order))
+
+        if new_step_size < min_step_size:
+            self._print_verbose(
+                f"Warning! Computed step size {new_step_size:.4e} < min step size {min_step_size:.4e}. Using min step size."
+            )
+            new_step_size = min_step_size
+        elif new_step_size > max_step_size:
+            self._print_verbose(
+                f"Warning! Computed step size {new_step_size:.4e} > max step size {max_step_size:.4e}. Using max step size."
+            )
+            new_step_size = max_step_size
+
+        new_time = current_time + step_size
+        if new_time + new_step_size > t_final:
+            new_step_size = max(t_final - new_time, 0.0)
+            if new_step_size <= 0:
+                step_accepted = True
+                new_step_size = 0.0
+        return new_step_size, step_accepted
+
+    def _solve_with_fixed_step_size(self, ode_problem: ODEProblem, step_size):
+        """Solve an ODE system with a fixed time step.
+
+        Args:
+            ode_problem (ODEProblem): ODE system to integrate.
+            step_size (float): Fixed time step size.
+
+        Returns:
+            tuple:
+                - np.ndarray: Array of time points.
+                - np.ndarray: Array of corresponding states.
+
+        Raises:
+            PyOdysError: If Newton iterations fail.
+        """
+        U_courant = np.copy(ode_problem.initial_state)
+        current_time = ode_problem.t_init
+        max_number_of_time_steps = int((ode_problem.t_final - ode_problem.t_init) / step_size)
+
+
+        if self.progress_interval_in_time == None:
+            self.progress_interval_in_time = np.max([(float(max_number_of_time_steps) / 100.0)*self.initial_step_size, 1.0])
+
+        next_progress_in_time = ode_problem.t_init + self.progress_interval_in_time
+        if self.export_interval:
+            times = np.empty(self.export_interval+1, dtype=float)
+            solutions = np.empty((self.export_interval+1, len(ode_problem.initial_state)), dtype=float)
+        else :
+            times = np.empty(max_number_of_time_steps+1, dtype=float)
+            solutions = np.empty((max_number_of_time_steps+1, len(ode_problem.initial_state)), dtype=float)
+        times[0] = ode_problem.t_init
+        solutions[0,:] = np.copy(U_courant)
+
+        k = 0
+
+        for n in range(max_number_of_time_steps):
+            U_n_plus_1, _, newton_not_happy = self._perform_single_rk_step(
+                ode_problem, current_time, step_size, U_courant
+            )
+            if newton_not_happy:
+                message = f"Newton failed at time step {n+1} even after Jacobian refresh."
+                self._print_verbose(message)
+                raise PyOdysError(message)
+
+            U_courant = U_n_plus_1
+            current_time += step_size
+            times[k+1] = current_time
+            solutions[k+1, :] = U_courant
+            k += 1
+
+            if self.export_interval and k == self.export_interval:
+                self._export(times[:k], solutions[:k, :])
+                times[0] = times[k]
+                solutions[0, :] = solutions[k, :]
+                k = 0
+
+            if current_time >= next_progress_in_time:
+                self._print_verbose(
+                    f"Time step #{n+1} completed. Current time: {current_time:.4f}"
+                )
+                next_progress_in_time += self.progress_interval_in_time
+        
+        if self.export_interval:
+            if k > 0:
+                self._export(times[:k+1], solutions[:k+1, :])
+            print(f"Simulation completed. The results have been saved to {self.export_prefix}*.csv")
+            return None
+
+        return np.array(times), np.array(solutions)
+
+    def resoud(self, ode_problem: ODEProblem):
+        """Alias for :meth:`solve`.
+
+        Args:
+            ode_problem (ODEProblem): ODE system to solve.
+
+        Returns:
+            tuple:
+                - np.ndarray: Array of time points.
+                - np.ndarray: Array of states.
+        """
+        return self.solve(ode_problem)
+
+    

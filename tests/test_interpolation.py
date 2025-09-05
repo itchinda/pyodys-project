@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
-from pyodys import EDOs, hermite_interpolate  # replace with actual import path
+from pyodys import ODEProblem, hermite_interpolate  # replace with actual import path
 
 # Minimal example ODE system
-class Systeme(EDOs):
+class Systeme(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
     

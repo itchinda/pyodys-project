@@ -17,8 +17,8 @@ for scheme_data in _SCHEMAS_DATA.values():
     scheme_data['B'] = np.array(scheme_data['B'])
     scheme_data['C'] = np.array(scheme_data['C'])
 
-class TableauDeButcher(object):
-    SCHEMAS_DISPONIBLES = list(_SCHEMAS_DATA.keys())
+class ButcherTableau(object):
+    AVAILABLE_SCHEMES = list(_SCHEMAS_DATA.keys())
 
     def __init__(self, A, B, C, ordre: int):
         if not isinstance(A, np.ndarray) or A.ndim != 2:
@@ -59,25 +59,25 @@ class TableauDeButcher(object):
         self.ordre = ordre
 
     @property
-    def nombre_de_niveaux(self):
+    def n_stages(self):
         return self.A.shape[0]
     
     @property
-    def est_avec_prediction(self):
+    def with_prediction(self):
         return self.B.ndim == 2 and self.B.shape[0] == 2
         
 
 
     @property
-    def est_explicite(self):
+    def is_explicit(self):
         return np.all(np.triu(self.A, 0) == 0)
 
     @property
-    def est_implicite(self):
-        return not self.est_explicite
+    def is_implicit(self):
+        return not self.is_explicit
 
     @property
-    def est_diagonalement_implicite(self):
+    def is_diagonally_implicit(self):
         if not np.all(np.triu(self.A, 1) == 0):
             return False
         
@@ -116,7 +116,7 @@ class TableauDeButcher(object):
     def par_nom(cls, nom):
         nom_lower = nom.lower()
         if nom_lower not in _SCHEMAS_DATA:
-            raise ValueError(f"Nom de schema inconnu: '{nom}'. Voici les schemas disponibles: {', '.join(cls.SCHEMAS_DISPONIBLES)}")
+            raise ValueError(f"Nom de schema inconnu: '{nom}'. Voici les schemas disponibles: {', '.join(cls.AVAILABLE_SCHEMES)}")
         
         scheme_data = _SCHEMAS_DATA[nom_lower]
         return cls(scheme_data['A'], scheme_data['B'], scheme_data['C'], scheme_data['ordre'])
