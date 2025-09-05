@@ -8,7 +8,7 @@ Run with: python -m edo
 import sys
 import shutil
 import argparse
-from pyodys import TableauDeButcher
+from pyodys import ButcherTableau
 # ANSI color codes
 RED = "\033[31m"
 GREEN = "\033[32m"
@@ -29,7 +29,7 @@ def print_available_schemes():
     Prints a list of all available Runge-Kutta schemes.
     """
     print("Available Runge-Kutta schemes:")
-    for name in sorted(TableauDeButcher.SCHEMAS_DISPONIBLES):
+    for name in sorted(ButcherTableau.AVAILABLE_SCHEMES):
         print(f"- {name}")
 
 def main():
@@ -67,7 +67,7 @@ def main():
     print("\nRun them with:")
     print("  python -m edo.exemples.coupled_linear_system")
     print("  python -m edo.exemples.lorenz_system")
-    print(f"\n{BLUE}Enjoy solving EDOs! {RESET}")
+    print(f"\n{BLUE}Enjoy solving ODEProblem! {RESET}")
 
     
     

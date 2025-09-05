@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 from pyodys import EDOs
-from pyodys import TableauDeButcher
-from pyodys import SolveurRKAvecTableauDeButcher
+from pyodys import ButcherTableau
+from pyodys import RKSolverWithButcherTableau
 
 # Define Robertson System
 class RobertsonModel(EDOs):
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     system = RobertsonModel(t0, tf, u0)
 
     # solver
-    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name(args.method),
+    solver = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name(args.method),
                                            initial_step_size = args.step_size,
                                            adaptive_time_stepping = args.adaptive_stepping,
                                            target_relative_error = args.tolerance,

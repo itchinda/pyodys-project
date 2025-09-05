@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-from pyodys import EDOs
-from pyodys import TableauDeButcher
-from pyodys import SolveurRKAvecTableauDeButcher
+from pyodys import ODEProblem
+from pyodys import ButcherTableau
+from pyodys import RKSolverWithButcherTableau
 
 # Problem definition
 PP = 0.12  # choisir entre 0 et 1. Exemples a la page 60 du document de Lamirande
@@ -93,7 +93,7 @@ def calcule_params_pertubes(t):
 
     return k_U, k_V, k_W
 
-class LamirandeSystem(EDOs):
+class LamirandeSystem(ODEProblem):
     def __init__(self, t_init, t_final, initial_state):
         super().__init__(t_init, t_final, initial_state)
         # Specific Lorenz System Parameters
@@ -130,7 +130,7 @@ if __name__ == '__main__':
                               initial_state=Y)
 
     # solver
-    solver = SolveurRKAvecTableauDeButcher(TableauDeButcher.from_name('esdirk6'),                                    
+    solver = RKSolverWithButcherTableau(ButcherTableau.from_name('esdirk6'),                                    
                                            initial_step_size=1e-10,
                                            adaptive_time_stepping=True,
                                            min_step_size=1e-10,
@@ -141,7 +141,7 @@ if __name__ == '__main__':
                                            progress_interval_in_time=1.0)
 
     start=time.time()
-    times, solutions = solver.solve( systeme_EDOs=systeme )
+    times, solutions = solver.solve( ode_problem=systeme )
     Elapsed = time.time() - start
     # print(Elapsed)
     # print("Saving data to CSV...")

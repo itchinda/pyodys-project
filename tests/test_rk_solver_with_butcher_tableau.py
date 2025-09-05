@@ -1,20 +1,18 @@
 import numpy as np
 import pytest
 
-from pyodys import SolveurRKAvecTableauDeButcher
-from pyodys import TableauDeButcher
-from pyodys import EDOs
+from pyodys import RKSolverWithButcherTableau
+from pyodys import ButcherTableau
+from pyodys import ODEProblem
 
 # To execute the tests, run python -m pytest -v, from the working directory edo/
 
-class ExponentialDecay(EDOs):
+class ExponentialDecay(ODEProblem):
     """
     Simple test system: u'(t) = -u, solution u(t) = exp(-t).
     """
     def __init__(self, u0=1.0, t_init=0.0, t_final=1.0):
-        self.initial_state = np.array([u0])
-        self.t_init = t_init
-        self.t_final = t_final
+        super().__init__(t_init, t_final, u0)
 
     def evalue(self, t, u):
         return -u
@@ -23,11 +21,11 @@ class ExponentialDecay(EDOs):
         return np.array([[-1.0]])
 
 
-@pytest.mark.parametrize("method", TableauDeButcher.SCHEMAS_DISPONIBLES)
+@pytest.mark.parametrize("method", ButcherTableau.AVAILABLE_SCHEMES)
 def test_solver_runs_and_matches_exact_solution(method):
     system = ExponentialDecay()
-    tableau = TableauDeButcher.par_nom(method)
-    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher=tableau, 
+    tableau = ButcherTableau.par_nom(method)
+    solver = RKSolverWithButcherTableau(butcher_tableau=tableau, 
                                            initial_step_size=0.01)
 
     temps, solutions = solver.resoud(system)
@@ -37,12 +35,12 @@ def test_solver_runs_and_matches_exact_solution(method):
         f"{method} failed: got {solutions[-1][0]}, expected {exact}"
 
 
-@pytest.mark.parametrize("method_name", [m for m in TableauDeButcher.SCHEMAS_DISPONIBLES
-                                          if TableauDeButcher.par_nom(m).est_avec_prediction])
+@pytest.mark.parametrize("method_name", [m for m in ButcherTableau.AVAILABLE_SCHEMES
+                                          if ButcherTableau.par_nom(m).with_prediction])
 def test_solver_adaptive_step_runs(method_name):
     """Test adaptive stepping for schemes that support it."""
-    tableau = TableauDeButcher.par_nom(method_name)
-    solver = SolveurRKAvecTableauDeButcher(tableau,
+    tableau = ButcherTableau.par_nom(method_name)
+    solver = RKSolverWithButcherTableau(tableau,
                                            initial_step_size=1.0e-5,
                                            adaptive_time_stepping=True,
                                            min_step_size=1e-6,
@@ -62,10 +60,10 @@ def test_solver_adaptive_step_runs(method_name):
 def test_invalid_tableau_type_raises():
     """Check that passing a wrong type to the solver raises TypeError."""
     with pytest.raises(TypeError):
-        SolveurRKAvecTableauDeButcher(tableau_de_butcher="not_a_tableau")
+        RKSolverWithButcherTableau(butcher_tableau="not_a_tableau")
 
 # Define a stiff problem
-class StiffProblem(EDOs):
+class StiffProblem(ODEProblem):
     def __init__(self, t_init, t_final, initial_state):
         super().__init__(t_init, t_final, initial_state)
         
@@ -86,12 +84,12 @@ class StiffProblem(EDOs):
 def exact_solution(t):
     return np.array([2.0*np.exp(-t) - np.exp(-100.0 * t), 2.0 * np.exp(-t)])
 
-@pytest.mark.parametrize("method_name", [m for m in TableauDeButcher.SCHEMAS_DISPONIBLES
-                                          if TableauDeButcher.par_nom(m).est_avec_prediction])
+@pytest.mark.parametrize("method_name", [m for m in ButcherTableau.AVAILABLE_SCHEMES
+                                          if ButcherTableau.par_nom(m).with_prediction])
 def test_step_size_adjustment_time_limits(method_name):
     """Test that step size is clipped to min/max limits."""
-    tableau = TableauDeButcher.par_nom(method_name)
-    solver = SolveurRKAvecTableauDeButcher(tableau_de_butcher=tableau,
+    tableau = ButcherTableau.par_nom(method_name)
+    solver = RKSolverWithButcherTableau(butcher_tableau=tableau,
                                            initial_step_size=1e-4, 
                                            adaptive_time_stepping=True,
                                            min_step_size=1e-8, 
@@ -108,12 +106,12 @@ def test_step_size_adjustment_time_limits(method_name):
     assert np.all(steps >= 1e-8)
     assert np.all(steps <= 1.0)
 
-@pytest.mark.parametrize("method_name", [m for m in TableauDeButcher.SCHEMAS_DISPONIBLES
-                                          if TableauDeButcher.par_nom(m).est_avec_prediction])
+@pytest.mark.parametrize("method_name", [m for m in ButcherTableau.AVAILABLE_SCHEMES
+                                          if ButcherTableau.par_nom(m).with_prediction])
 def test_solver_adaptive_step_runs_and_matches_exact_solution(method_name):
     """Test that step size is clipped to min/max limits."""
-    tableau = TableauDeButcher.par_nom(method_name)
-    solver = SolveurRKAvecTableauDeButcher(tableau,
+    tableau = ButcherTableau.par_nom(method_name)
+    solver = RKSolverWithButcherTableau(tableau,
                                            initial_step_size=1e-4,
                                            adaptive_time_stepping=True,
                                            min_step_size=1e-8, 
@@ -133,4 +131,4 @@ def test_solver_adaptive_step_runs_and_matches_exact_solution(method_name):
 
 def test_invalid_tableau_raises():
     with pytest.raises(TypeError):
-        SolveurRKAvecTableauDeButcher(tableau_de_butcher="not_a_tableau")
+        RKSolverWithButcherTableau(butcher_tableau="not_a_tableau")

@@ -2,12 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Using the top-level imports from the installed package
-from pyodys import EDOs
-from pyodys import TableauDeButcher
-from pyodys import SolveurRKAvecTableauDeButcher
+from pyodys import ODEProblem
+from pyodys import ButcherTableau
+from pyodys import RKSolverWithButcherTableau
 
 # Define coupled linear system
-class SystemeCouple(EDOs):
+class SystemeCouple(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
     
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     systeme = SystemeCouple(t_init, t_final, u_init)
 
     # Using a SDIRK solver
-    solver_sdirk = SolveurRKAvecTableauDeButcher(tableau_de_butcher = TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'),                             
+    solver_sdirk = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),                             
                                                 initial_step_size = 0.01,
                                                 adaptive_time_stepping = True,
                                                 target_relative_error = 1e-6,

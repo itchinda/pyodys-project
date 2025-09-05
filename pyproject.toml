@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyodys"
-version = "0.0.3"
+version = "0.0.5"
 dependencies = [
     "numpy",
     "scipy"
@@ -13,3 +13,4 @@ description = "This is a robust and flexible Python package for solving ordinary
 authors = [
     { name = "Ismaël Tchinda Ngueyong", email = "pyodyscontact@gmail.com" }
 ]
+license = { file = "LICENSE" }
