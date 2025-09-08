@@ -92,9 +92,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Using the top-level imports from the installed package
-from pyodys import ODEProblem
-from pyodys import TableauDeButcher
-from pyodys import RKSolverWithButcherTableau
+from pyodys import ODEProblem, ButcherTableau, RKSolverWithButcherTableau
 
 # Define coupled linear system
 class CoupledLinearSystem(ODEProblem):
@@ -121,7 +119,7 @@ if __name__ == '__main__':
     ode_system = CoupledLinearSystem(t_init, t_final, u_init)
 
     # Use a SDIRK solver for demonstration
-    solver_sdirk = RKSolverWithButcherTableau(butcher_tableau = TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'),
+    solver_sdirk = RKSolverWithButcherTableau(butcher_tableau = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),
                                               initial_step_size = 0.01,
                                               adaptive_time_stepping=True,
                                               min_step_size=1e-6,
