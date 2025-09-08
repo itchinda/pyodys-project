@@ -10,7 +10,7 @@ def _get_erk1():
         "A": [[0]],
         "B": [1],
         "C": [0],
-        "ordre": 1
+        "order": 1
     }
 
 def _get_erk2_midpoint():
@@ -20,7 +20,7 @@ def _get_erk2_midpoint():
               [0.5, 0.0]],
         "B": [0.0, 1.0],
         "C": [0.0, 0.5],
-        "ordre": 2
+        "order": 2
     }
 
 def _get_erk4():
@@ -34,7 +34,7 @@ def _get_erk4():
         ],
         "B": [1/6, 1/3, 1/3, 1/6],
         "C": [0.0, 0.5, 0.5, 1.0],
-        "ordre": 4
+        "order": 4
     }
 
 
@@ -44,7 +44,7 @@ def _get_sdirk1():
         "A": [[1]],
         "B": [1],
         "C": [1],
-        "ordre": 1
+        "order": 1
     }
 
 def _get_sdirk2_midpoint():
@@ -53,7 +53,7 @@ def _get_sdirk2_midpoint():
         "A": [[0.5]],
         "B": [1.0],
         "C": [0.5],
-        "ordre": 2
+        "order": 2
     }
 
 def _get_sdirk43_crouzeix():
@@ -68,7 +68,7 @@ def _get_sdirk43_crouzeix():
         ],
         "B": [1/delta, 1-2/delta, 1/delta],
         "C": [gamma, 0.5, 1-gamma],
-        "ordre": 2
+        "order": 2
     }
 
 def _get_cooper_verner():
@@ -108,7 +108,7 @@ def _get_cooper_verner():
         "A": A,
         "B": B,
         "C": C,
-        "ordre": 8
+        "order": 8
     }
 
 def _get_euler_heun():
@@ -123,7 +123,7 @@ def _get_euler_heun():
     bh = [1.0, 0.0]      # lower order embedded solution (order 1)
     B = [b, bh]
     C = [0.0, 1.0]
-    return {"A": A, "B": B, "C": C, "ordre": 2}
+    return {"A": A, "B": B, "C": C, "order": 2}
 
 def _get_bogacki_shampine():
     """
@@ -139,7 +139,7 @@ def _get_bogacki_shampine():
     bh = [2/9, 1/3, 4/9, 0.0]   # order 3 embedded solution
     B = [b, bh]
     C = [0.0, 0.5, 3/4, 1.0]
-    return {"A": A, "B": B, "C": C, "ordre": 3}
+    return {"A": A, "B": B, "C": C, "order": 3}
 
 
 def _get_fehlberg45():
@@ -158,7 +158,7 @@ def _get_fehlberg45():
     bh = [16/135, 0.0, 6656/12825, 28561/56430, -9/50, 2/55]  # order 5 embedded
     B = [b, bh]
     C = [0.0, 1/4, 3/8, 12/13, 1.0, 1/2]
-    return {"A": A, "B": B, "C": C, "ordre": 5}
+    return {"A": A, "B": B, "C": C, "order": 5}
 
 def _get_dopri5():
     """
@@ -180,7 +180,7 @@ def _get_dopri5():
 
     C = [0.0, 1/5, 3/10, 4/5, 8/9, 1.0, 1.0]
 
-    return {"A": A, "B": B, "C": C, "ordre": 5}
+    return {"A": A, "B": B, "C": C, "order": 5}
 
 def _get_sdirk21_crouzeix_raviart():
     """
@@ -200,7 +200,7 @@ def _get_sdirk21_crouzeix_raviart():
     B = [b, b_embedded]
     C = [gamma, 1.0]
     
-    return {"A": A, "B": B, "C": C, "ordre": 1}
+    return {"A": A, "B": B, "C": C, "order": 1}
 
 def _get_sdirk_norsett_thomson_23():
     """
@@ -215,7 +215,7 @@ def _get_sdirk_norsett_thomson_23():
     bh = [26/61, 324/671, 1/11] # Order 2 solution for prediction
     B = [b, bh]
     C = [5/6, 29/108, 1/6]
-    return {"A": A, "B": B, "C": C, "ordre": 2}
+    return {"A": A, "B": B, "C": C, "order": 2}
 
 def _get_sdirk_norsett_thomson_34():
     """Returns the data for the SDIRK scheme."""
@@ -235,7 +235,7 @@ def _get_sdirk_norsett_thomson_34():
         "A": A,
         "B": B,
         "C": C,
-        "ordre": 3
+        "order": 3
     }
 
 def _get_sdirk_hairer_norsett_wanner_45():
@@ -253,7 +253,7 @@ def _get_sdirk_hairer_norsett_wanner_45():
     bh = [25/24, -49/48, 125/16, -85/12, 1/4] # Order 4 solution for prediction
     B = [b, bh]
     C = [1/4, 3/4, 11/20, 1/2, 1.0]
-    return {"A": A, "B": B, "C": C, "ordre": 4}
+    return {"A": A, "B": B, "C": C, "order": 4}
 
 def _get_esdirk6():
 
@@ -277,7 +277,7 @@ def _get_esdirk6():
     B = [b_float, bhat_float]
     c1 = 0; c2 = 5./8; c3 = 5.*(2-np.sqrt(2))/16; c4 = 81./100; c5 = 89./100; c6 = 3./20; c7 = 11./16
     C = [c1,c2,c3,c4,c5,c6,c7]
-    return {"A": A, "B": B, "C": C, "ordre": 6}
+    return {"A": A, "B": B, "C": C, "order": 6}
 
 def available_butcher_table_data_to_json():
     """

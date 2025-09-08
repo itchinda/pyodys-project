@@ -13,7 +13,7 @@ class HIRESModel(ODEProblem):
     def __init__(self, t_init, t_final, initial_state):
         super().__init__(t_init, t_final, initial_state)
 
-    def evalue(self, t, u):
+    def evaluate_at(self, t, u):
         """
         HIRES stiff system (7 equations).
         See: Hairer & Wanner (1996) Solving Ordinary Differential Equations II.
@@ -101,12 +101,14 @@ if __name__ == '__main__':
     hires_system = HIRESModel(t0, tf, u0)
 
     # solver
-    solver = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name(args.method),
-                                           initial_step_size = args.step_size,
-                                           adaptive_time_stepping = args.adaptive_stepping,
-                                           min_step_size = args.min_step_size,
-                                           max_step_size = args.max_step_size,
-                                           target_relative_error = args.tolerance )
+    solver = RKSolverWithButcherTableau(
+                butcher_tableau = ButcherTableau.from_name(args.method),
+                initial_step_size = args.step_size,
+                adaptive_time_stepping = args.adaptive_stepping,
+                min_step_size = args.min_step_size,
+                max_step_size = args.max_step_size,
+                target_relative_error = args.tolerance 
+            )
 
     # Solve the system
     start=time.time()

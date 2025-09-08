@@ -8,7 +8,7 @@ class Robertson(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
 
-    def evalue(self, t, u):
+    def evaluate_at(self, t, u):
         y1, y2, y3 = u
         dy1 = -0.04*y1 + 1.0e4*y2*y3
         dy2 = 0.04*y1 - 1.0e4*y2*y3 - 3.0e7*y2*y2
@@ -16,19 +16,19 @@ class Robertson(ODEProblem):
         return np.array([dy1, dy2, dy3])
 
 # Initial conditions and time span
-t_init, t_final = 0.0, 1e5
+t_init, t_final = 0.0, 1e6
 u_init = [1.0, 0.0, 0.0]
 robertson = Robertson(t_init, t_final, u_init)
 
 # Adaptive SDIRK solver (implicit, stiff-friendly)
 solver = RKSolverWithButcherTableau(
-                                        tableau_de_butcher=ButcherTableau.from_name("sdirk_norsett_thomson_23"),
-                                        initial_step_size=1e-6,
-                                        adaptive_time_stepping=True,
-                                        min_step_size=1e-12,
-                                        max_step_size=10000.0,
-                                        target_relative_error=1e-6,
-                                        verbose=False
+            butcher_tableau=ButcherTableau.from_name("esdirk6"),
+            initial_step_size=1e-6,
+            adaptive_time_stepping=True,
+            min_step_size=1e-12,
+            max_step_size=10000.0,
+            target_relative_error=1e-6,
+            verbose=False
 )
 
 # Solve system
@@ -39,11 +39,9 @@ dt = np.diff(times)
 
 # --- Plot concentrations ---
 plt.figure(figsize=(10,6))
-plt.plot(times, sol[:,0], label="y1")
-plt.plot(times, sol[:,1], label="y2")
-plt.plot(times, sol[:,2], label="y3")
-plt.xscale("log")
-plt.yscale("log")
+plt.semilogx(times, sol[:,0], label="y1")
+plt.semilogx(times, 10**4*sol[:,1], label="y2")
+plt.semilogx(times, sol[:,2], label="y3")
 plt.xlabel("Time (log scale)")
 plt.ylabel("Concentration (log scale)")
 plt.title("Robertson Stiff Problem: Adaptive SDIRK Solution")
@@ -53,8 +51,7 @@ plt.show()
 
 # --- Plot adaptive step sizes ---
 plt.figure(figsize=(10,6))
-plt.plot(times[:-1], dt, 'r.-')
-plt.xscale("log")
+plt.plot(times[:-1], dt, 'r.')
 plt.yscale("log")
 plt.xlabel("Time")
 plt.ylabel("Step size Δt")

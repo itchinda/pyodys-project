@@ -3,12 +3,10 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from pyodys import EDOs
-from pyodys import ButcherTableau
-from pyodys import RKSolverWithButcherTableau
+from pyodys import ODEProblem, ButcherTableau, RKSolverWithButcherTableau
 
 # Define Robertson System
-class RobertsonModel(EDOs):
+class RobertsonModel(ODEProblem):
     def __init__(self, t_init, t_final, initial_state, k1=0.04, k2=3.0e7, k3=1.0e4):
         # Call the parent constructor
         super().__init__(t_init, t_final, initial_state)
@@ -17,7 +15,7 @@ class RobertsonModel(EDOs):
         self.k2 = k2
         self.k3 = k3
         
-    def evalue(self, t, u):
+    def evaluate_at(self, t, u):
         # u, state at time t: u = [x, y, z]
         x, y, z = u
         
@@ -29,14 +27,14 @@ class RobertsonModel(EDOs):
         # Returns the derivatives in a Numpy Array
         return np.array([dxdt, dydt, dzdt])
     
-    def jacobien(self, t, u):
+    def jacobian_at(self, t, u):
         x, y, z = u
-        Jacobien = np.array([
+        jacobian_at = np.array([
             [-self.k1, self.k3 * z, self.k3 * y],
             [ self.k1, -2.0*self.k2 * y - self.k3 * z, -self.k3 * y],
             [0.0, 2.0*self.k2 * y, 0.0]
         ])
-        return Jacobien
+        return jacobian_at
 
 def extract_args():
     parser = argparse.ArgumentParser(description="Solve the Robertson System.")
@@ -88,7 +86,7 @@ if __name__ == '__main__':
     system = RobertsonModel(t0, tf, u0)
 
     # solver
-    solver = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name(args.method),
+    solver = RKSolverWithButcherTableau(butcher_tableau = ButcherTableau.from_name(args.method),
                                            initial_step_size = args.step_size,
                                            adaptive_time_stepping = args.adaptive_stepping,
                                            target_relative_error = args.tolerance,
