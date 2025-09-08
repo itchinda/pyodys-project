@@ -11,7 +11,7 @@ class SystemeCouple(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
     
-    def evalue(self, t, u):
+    def evaluate_at(self, t, u):
         x, y = u
         return np.array([-x + y, -y])
 
@@ -31,12 +31,13 @@ if __name__ == '__main__':
     systeme = SystemeCouple(t_init, t_final, u_init)
 
     # Using a SDIRK solver
-    solver_sdirk = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),                             
-                                                initial_step_size = 0.01,
-                                                adaptive_time_stepping = True,
-                                                target_relative_error = 1e-6,
-                                                min_step_size = 1e-6,
-                                                max_step_size = 1.0
+    solver_sdirk = RKSolverWithButcherTableau(
+        butcher_tableau = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),                             
+        initial_step_size = 0.01,
+        adaptive_time_stepping = True,
+        target_relative_error = 1e-6,
+        min_step_size = 1e-6,
+        max_step_size = 1.0
     )
     
     times, solutions = solver_sdirk.solve( systeme )

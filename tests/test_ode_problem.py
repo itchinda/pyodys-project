@@ -11,7 +11,7 @@ class LinearSystem(ODEProblem):
         super().__init__(t_init, t_final, initial_state, **kwargs)
         self.A = np.array(A, dtype=np.float64)
 
-    def evalue(self, t, state):
+    def evaluate_at(self, t, state):
         return self.A @ state
 
 
@@ -57,14 +57,14 @@ def test_invalid_t_final_type(value):
 def test_jacobian_linear_system_identity():
     A = np.eye(2)
     sys = LinearSystem(0.0, 1.0, [1.0, 0.0], A)
-    J = sys.jacobien(0.0, np.array([1.0, 0.0]))
+    J = sys.jacobian_at(0.0, np.array([1.0, 0.0]))
     assert np.allclose(J, A, atol=1e-8)
 
 
 def test_jacobian_linear_system_nontrivial():
     A = np.array([[0.0, 1.0], [-2.0, -3.0]])
     sys = LinearSystem(0.0, 1.0, [1.0, 1.0], A, delta=1e-6)
-    J = sys.jacobien(0.0, np.array([1.0, 1.0]))
+    J = sys.jacobian_at(0.0, np.array([1.0, 1.0]))
     assert np.allclose(J, A, atol=1e-6)
 
 

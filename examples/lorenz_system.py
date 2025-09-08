@@ -14,7 +14,7 @@ class LorenzSystem(ODEProblem):
         self.rho = rho
         self.beta = beta
         
-    def evalue(self, t, u):
+    def evaluate_at(self, t, u):
         x, y, z = u
         dxdt = self.sigma * (y - x)
         dydt = x * (self.rho - z) - y
@@ -22,16 +22,16 @@ class LorenzSystem(ODEProblem):
         return np.array([dxdt, dydt, dzdt])
     
     def __call__(self, t, u):
-        return self.evalue(t, u)
+        return self.evaluate_at(t, u)
     
-    def jacobien(self, t, u):
+    def jacobian_at(self, t, u):
         x, y, z = u
-        Jacobien = np.array([
+        jacobian_at = np.array([
             [-self.sigma, self.sigma, 0],
             [self.rho - z, -1, -x],
             [y, x, - self.beta]
         ])
-        return Jacobien
+        return jacobian_at
 
 
 if __name__ == '__main__':
@@ -47,11 +47,11 @@ if __name__ == '__main__':
                         help='The initial time step size.')
     parser.add_argument('--final-time', '-t', 
                         type=float, 
-                        default=50.0,
+                        default=100.0,
                         help='The final time for the simulation.')
     parser.add_argument('--tolerance', '-tol', 
                         type=float,
-                        default=1e-8,
+                        default=1e-10,
                         help='The target relative error for adaptive time stepping.')
     parser.add_argument('--no-adaptive-stepping', 
                         action='store_false', 
@@ -80,12 +80,12 @@ if __name__ == '__main__':
                            initial_state=u0)
 
     # solver
-    solver = RKSolverWithButcherTableau(tableau_de_butcher = ButcherTableau.from_name(args.method),
-                                           initial_step_size=args.step_size, 
-                                           adaptive_time_stepping=args.adaptive_stepping,
-                                           target_relative_error=args.tolerance, 
-                                           min_step_size=args.min_step_size, 
-                                           max_step_size=args.max_step_size)
+    solver = RKSolverWithButcherTableau(butcher_tableau = ButcherTableau.from_name(args.method),
+                                        initial_step_size=args.step_size, 
+                                        adaptive_time_stepping=args.adaptive_stepping,
+                                        target_relative_error=args.tolerance, 
+                                        min_step_size=args.min_step_size, 
+                                        max_step_size=args.max_step_size)
 
     times, solutions = solver.solve( ode_problem = lorenz_system )
 

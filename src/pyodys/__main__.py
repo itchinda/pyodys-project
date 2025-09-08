@@ -29,7 +29,7 @@ def print_available_schemes():
     Prints a list of all available Runge-Kutta schemes.
     """
     print("Available Runge-Kutta schemes:")
-    for name in sorted(ButcherTableau.AVAILABLE_SCHEMES):
+    for name in sorted(ButcherTableau.available_schemes()):
         print(f"- {name}")
 
 def main():

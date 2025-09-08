@@ -1,126 +1,359 @@
 import numpy as np
 import json
 import os
-from .butcher_tableaus_data.available_butcher_table_data_to_json import available_butcher_table_data_to_json
+from typing import Union, ClassVar, List
+from functools import lru_cache
+from typing import Dict, Any
 
-# Creation du fichier JSON pour les schemas disponibles
-available_butcher_table_data_to_json()
+_DEFAULT_ZERO_TOL = 1e-14
 
-# On importe ensuite les donnees du fichier JSON
-file_path = os.path.join(os.path.dirname(__file__), 'butcher_tableaus_data/tableaux_de_butcher_disponibles.json')
-with open(file_path, 'r') as f:
-    _SCHEMAS_DATA = json.load(f)
 
-# On convertit en NumPy arrays
-for scheme_data in _SCHEMAS_DATA.values():
-    scheme_data['A'] = np.array(scheme_data['A'])
-    scheme_data['B'] = np.array(scheme_data['B'])
-    scheme_data['C'] = np.array(scheme_data['C'])
+@lru_cache(maxsize=1)
+def _load_schemes() -> Dict[str, Any]:
+    """Internal: load Butcher tableau JSON only once (lazy)."""
+    from .butcher_tableaus_data.available_butcher_table_data_to_json import (
+        available_butcher_table_data_to_json,
+    )
 
-class ButcherTableau(object):
-    AVAILABLE_SCHEMES = list(_SCHEMAS_DATA.keys())
+    # Ensure JSON file exists/updated
+    available_butcher_table_data_to_json()
 
-    def __init__(self, A, B, C, ordre: int):
+    file_path = os.path.join(
+        os.path.dirname(__file__),
+        "butcher_tableaus_data/tableaux_de_butcher_disponibles.json",
+    )
+    with open(file_path, "r") as f:
+        data = json.load(f)
+
+    # Convert to NumPy arrays
+    for scheme_data in data.values():
+        scheme_data["A"] = np.array(scheme_data["A"], dtype=float)
+        scheme_data["B"] = np.array(scheme_data["B"], dtype=float)
+        scheme_data["C"] = np.array(scheme_data["C"], dtype=float)
+
+    return data
+
+class ButcherTableau:
+    """
+    Representation of a Runge-Kutta Butcher tableau.
+
+    A Butcher tableau is defined by three arrays (A, B, C) and an order.
+    It encodes the coefficients of a Runge-Kutta method for ODE integration.
+
+    Parameters
+    ----------
+    A : np.ndarray (s x s)
+        Stage coefficients (matrix).
+    B : np.ndarray (length s or shape (2, s))
+        Weights of the method.
+        - shape (s,) for classical RK methods
+        - shape (2, s) for embedded methods (predictor/corrector pair)
+    C : np.ndarray (length s or shape (s, 1))
+        Nodes of the method (usually sum of rows of A).
+    order : int
+        The order of the scheme.
+
+    Raises
+    ------
+    TypeError
+        If A, B, C are not NumPy arrays of numeric type, or if order is not int/float.
+    ValueError
+        If dimensions of A, B, or C are inconsistent.
+
+    Attributes
+    ----------
+    A : np.ndarray
+        Stage coefficient matrix.
+    B : np.ndarray
+        Weight vector(s).
+    C : np.ndarray
+        Node vector.
+    order : int
+        The order of accuracy of the scheme.
+    n_stages : int
+        Number of stages (size of A).
+    with_prediction : bool
+        True if method has embedded predictor/corrector (B has two rows).
+    is_explicit : bool
+        True if method is explicit (strictly lower-triangular A).
+    is_implicit : bool
+        True if method is implicit (not explicit).
+    is_diagonally_implicit : bool
+        True if method is a DIRK (diagonal entries all equal and nonzero).
+
+    Methods
+    -------
+    __str__():
+        Return a formatted string of the Butcher tableau.
+    par_nom(nom: str) -> ButcherTableau:
+        Load a predefined scheme by French name.
+    from_name(name: str) -> ButcherTableau:
+        Load a predefined scheme by English name (alias).
+
+    Examples
+    --------
+    >>> tableau = ButcherTableau.from_name("erk4")
+    >>> print(tableau)
+    Runge-Kutta method of order 4
+    
+                     0 |                  0                  0                  0                  0
+                   0.5 |                0.5                  0                  0                  0
+                   0.5 |                  0                0.5                  0                  0
+                     1 |                  0                  0                  1                  0         
+    -------------------+-----------------------------------------------------------------------------
+                         0.1666666666666667 0.3333333333333333 0.3333333333333333 0.1666666666666667
+    
+    >>> tableau.is_explicit
+    True
+    >>> tableau.n_stages
+    4
+    """
+
+    def __init__(self, A: np.ndarray, B: np.ndarray, C: np.ndarray, order: Union[int, float], check_consistency: bool = False):
+        """
+        Initialize a Runge-Kutta Butcher tableau.
+
+        Parameters
+        ----------
+        A : np.ndarray, shape (s, s)
+            Stage coefficient matrix. Must be square (s x s).
+        B : np.ndarray, shape (s,) or (2, s)
+            Weights of the method.
+            - Shape (s,) for classical RK methods.
+            - Shape (2, s) for embedded methods (predictor/corrector pair).
+        C : np.ndarray, shape (s,) or (s, 1)
+            Node vector, usually sum of rows of A.
+        order : int or float
+            The order of accuracy of the scheme.
+        check_consistency : bool, optional (default=False)
+            If True, raise a ValueError if the sum of each row of A does not equal the corresponding entry of C.
+            If False, no check is performed (user-defined tableaus with custom C allowed).
+
+        Raises
+        ------
+        TypeError
+            If A, B, C are not NumPy arrays of numeric type, or if `order` is not int/float.
+        ValueError
+            If dimensions of A, B, or C are inconsistent, or if check_consistency=True and sum(A, axis=1) != C.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from pyodys import ButcherTableau
+        >>> A = np.array([[0.0, 0.0], [0.5, 0.0]])
+        >>> B = np.array([0.5, 0.5])
+        >>> C = np.sum(A, axis=1)
+        >>> tableau = ButcherTableau(A, B, C, order=2, check_consistency=True)
+        """
+        # Type checks
         if not isinstance(A, np.ndarray) or A.ndim != 2:
             raise TypeError("A doit être une matrice numpy de dimension 2.")
-        if not isinstance(B, np.ndarray) or B.ndim not in [1, 2]:
+        if not isinstance(B, np.ndarray) or B.ndim not in (1, 2):
             raise TypeError("B doit être un vecteur numpy de dimension 1 ou 2.")
-        if not isinstance(C, np.ndarray) or C.ndim not in [1, 2]:
+        if not isinstance(C, np.ndarray) or C.ndim not in (1, 2):
             raise TypeError("C doit être un vecteur numpy de dimension 1 ou 2.")
-        if not isinstance(ordre, (int, float)):
-            raise TypeError("Le paramètre 'ordre' doit être de type entier ou réel.")
+        if not isinstance(order, (int, float)):
+            raise TypeError("Le paramètre 'order' doit être de type entier ou réel.")
         if not all(np.issubdtype(arr.dtype, np.number) for arr in [A, B, C]):
             raise TypeError("Les tableaux A, B, et C doivent contenir des nombres (entiers ou réels).")
-            
+        if check_consistency:
+            if not np.allclose(C, np.sum(A, axis=1), rtol=1e-14, atol=1e-14):
+                raise ValueError("Sum of A per row does not match C.")
+
+        # Shape checks
         rows_A, cols_A = A.shape
         if rows_A != cols_A:
             raise ValueError("La matrice A doit être carrée.")
-        s = rows_A  # le nombre de niveaux
-        
+        s = rows_A
+
         if B.ndim == 1:
             if B.size != s:
                 raise ValueError(f"Le vecteur B doit avoir une taille de {s}.")
-        elif B.ndim == 2:
+        else:  # B.ndim == 2
             rows_B, cols_B = B.shape
-            if cols_B != s or rows_B not in [1, 2]:
+            if cols_B != s or rows_B not in (1, 2):
                 raise ValueError(f"Le vecteur B doit avoir {s} colonnes et 1 ou 2 lignes.")
-        
+
         if C.ndim == 1:
             if C.size != s:
                 raise ValueError(f"Le vecteur C doit avoir une taille de {s}.")
-        elif C.ndim == 2:
+        else:  # C.ndim == 2
             rows_C, cols_C = C.shape
             if rows_C != s or cols_C != 1:
                 raise ValueError(f"Le vecteur C doit être une matrice {s}x1.")
-        
-        self.A = A
-        self.B = B
-        self.C = C
-        self.ordre = ordre
 
+        self.A: np.ndarray = A
+        self.B: np.ndarray = B
+        self.C: np.ndarray = C
+        self.order: Union[int, float] = order
+
+    # ------------------ Properties ------------------
     @property
-    def n_stages(self):
+    def n_stages(self) -> int:
+        """Number of stages in the RK scheme."""
         return self.A.shape[0]
-    
+
     @property
-    def with_prediction(self):
+    def with_prediction(self) -> bool:
+        """Whether the method is embedded (has predictor/corrector)."""
         return self.B.ndim == 2 and self.B.shape[0] == 2
-        
-
 
     @property
-    def is_explicit(self):
-        return np.all(np.triu(self.A, 0) == 0)
+    def is_explicit(self) -> bool:
+        """
+        Explicit RK if A is strictly lower-triangular, i.e. all diagonal and
+        above-diagonal entries are (close to) zero.
+        """
+        return np.allclose(np.triu(self.A, 0), 0.0, atol=_DEFAULT_ZERO_TOL, rtol=_DEFAULT_ZERO_TOL)
 
     @property
-    def is_implicit(self):
+    def is_implicit(self) -> bool:
+        """True if not explicit."""
         return not self.is_explicit
 
     @property
-    def is_diagonally_implicit(self):
-        if not np.all(np.triu(self.A, 1) == 0):
+    def is_diagonally_implicit(self) -> bool:
+        """
+        DIRK test: upper triangle above diagonal should be zero,At least one diagonal entrie
+        should be non-zero.
+        Returns True for general DIRK (diagonal may vary).
+        """
+        # upper triangle above diagonal must be (close to) zero
+        if not np.allclose(np.triu(self.A, 1), 0.0, atol=_DEFAULT_ZERO_TOL, rtol=_DEFAULT_ZERO_TOL):
             return False
-        
-        diagonale = np.diag(self.A)
-        return np.all(diagonale != 0) and np.allclose(diagonale, diagonale[0])
 
-    def __str__(self):
+        diag = np.diag(self.A)
+        # require at least one diagonal entrie to be non-zero (larger than tolerance)
+        return np.any(np.abs(diag) > _DEFAULT_ZERO_TOL)
+
+    @property
+    def is_sdirk(self) -> bool:
+        """
+        Stiffly-diagonally-implicit RK (SDIRK): DIRK with all diagonal entries equal.
+        """
+        if not self.is_diagonally_implicit:
+            return False
+        diag = np.diag(self.A)
+        return np.allclose(diag, diag[0], atol=_DEFAULT_ZERO_TOL, rtol=_DEFAULT_ZERO_TOL)
+
+    @property
+    def is_esdirk(self) -> bool:
+        """
+        Check if the scheme is ESDIRK (Explicit Singly Diagonally Implicit Runge-Kutta): 
+        - First stage explicit (a_11 ~= 0)
+        - Remaining diagonal entries equal and non-zero
+        - Lower-triangular A
+        """
+        if not np.allclose(np.triu(self.A, 1), 0.0, atol=_DEFAULT_ZERO_TOL):
+            return False
+
+        diag = np.diag(self.A)
+        if np.abs(diag[0]) > _DEFAULT_ZERO_TOL:
+            return False  # first stage must be explicit
+
+        remaining_diag = diag[1:]
+        nonzero_diag = remaining_diag[np.abs(remaining_diag) > _DEFAULT_ZERO_TOL]
+        return len(nonzero_diag) > 0 and np.allclose(nonzero_diag, nonzero_diag[0], atol=_DEFAULT_ZERO_TOL)
+
+    # ------------------ Display ------------------
+    def __str__(self) -> str:
         s = self.A.shape[0]
-        output = f"Schéma de Runge-Kutta d'ordre {self.ordre}\n\n"
-        
-        # Determine max width for numbers to ensure alignment
-        max_width = max(len(f'{x:.16g}') for x in np.concatenate([self.A.flatten(), self.B.flatten(), self.C.flatten()]))
-        
-        # Print the C vector and A matrix
+        output = f"Runge-Kutta method of order {self.order}\n\n"
+
+        # Determine max width for alignment
+        max_width = max(
+            len(f"{x:.16g}")
+            for x in np.concatenate([self.A.flatten(), self.B.flatten(), self.C.flatten()])
+        )
+
+        # Print C and A
         for i in range(s):
-            c_val = f'{self.C[i]:>{max_width}.16g}'
-            a_row = ' '.join(f'{val:>{max_width}.16g}' for val in self.A[i])
+            c_val = f"{self.C[i]:>{max_width}.16g}"
+            a_row = " ".join(f"{val:>{max_width}.16g}" for val in self.A[i])
             output += f"{c_val} | {a_row}\n"
-        
-        # Print the line separating A and B
-        separator = '-' * (max_width + 1) + '+' + '-' * (s * (max_width + 1) + 1)
+
+        # Separator
+        separator = "-" * (max_width + 1) + "+" + "-" * (s * (max_width + 1) + 1)
         output += f"{separator}\n"
-        
-        # Print the B vectors
+
+        # Print B
         if self.B.ndim == 1:
-            b_row = ' '.join(f'{val:>{max_width}.16g}' for val in self.B)
+            b_row = " ".join(f"{val:>{max_width}.16g}" for val in self.B)
             output += f"{'':>{max_width}}   {b_row}\n"
-        elif self.B.ndim == 2:
+        else:
             for row in self.B:
-                b_row = ' '.join(f'{val:>{max_width}.16g}' for val in row)
+                b_row = " ".join(f"{val:>{max_width}.16g}" for val in row)
                 output += f"{'':>{max_width}}   {b_row}\n"
-                
+
         return output
+    
+    def rk_type_summary(self) -> str:
+        """
+        Return a concise textual summary of the Runge-Kutta type.
+        
+        Example output:
+            Type: ESDIRK
+            Stages: 6
+            Order: 4
+            Embedded: Yes
+        """
+        if self.is_esdirk:
+            rk_type = "ESDIRK"
+        elif self.is_sdirk:
+            rk_type = "SDIRK"
+        elif self.is_diagonally_implicit:
+            rk_type = "DIRK"
+        elif self.is_implicit:
+            rk_type = "Implicit RK"
+        elif self.is_explicit:
+            rk_type = "Explicit RK"
+        else:
+            rk_type = "Unknown"
+    
+        embedded = "Yes" if self.with_prediction else "No"
+    
+        return (
+            f"Type: {rk_type}\n"
+            f"Stages: {self.n_stages}\n"
+            f"Order: {self.order}\n"
+            f"Embedded: {embedded}"
+        )
 
     @classmethod
-    def par_nom(cls, nom):
-        nom_lower = nom.lower()
-        if nom_lower not in _SCHEMAS_DATA:
-            raise ValueError(f"Nom de schema inconnu: '{nom}'. Voici les schemas disponibles: {', '.join(cls.AVAILABLE_SCHEMES)}")
-        
-        scheme_data = _SCHEMAS_DATA[nom_lower]
-        return cls(scheme_data['A'], scheme_data['B'], scheme_data['C'], scheme_data['ordre'])
-    
-    @classmethod # Alias en anglais de par_nom
-    def from_name(cls, name):
-        return cls.par_nom(name)
+    def from_name(cls, name: str) -> "ButcherTableau":
+        """
+        Load a predefined scheme by name.
+        Args:
+            name : The name of the method.
+
+        Examples:
+        >>> from pyodys import ButcherTableau
+        >>> print(ButcherTableau.available_schemes())
+        ['erk1', 'erk2_midpoint', 'erk4', 'sdirk1', 'sdirk2_midpoint', 'sdirk43_crouzeix', 'cooper_verner', 'euler_heun', 'bogacki_shampine', 'fehlberg45', 'dopri5', 'sdirk21_crouzeix_raviart', 'sdirk_norsett_thomson_23', 'sdirk_norsett_thomson_34', 'sdirk_hairer_norsett_wanner_45', 'esdirk6']
+        >>> tableau = ButcherTableau.from_name('erk4')
+        >>> tableau.rk_type_summary()
+        Type: Explicit RK
+        Stages: 4
+        Order: 4
+        Embedded: No
+        """
+        data = _load_schemes()
+        name_lower = name.lower()
+        if name_lower not in data:
+            raise ValueError(
+                f"Nom de schema inconnu: '{name}'. "
+                f"Schemas disponibles: {', '.join(data.keys())}"
+            )
+        scheme_data = data[name_lower]
+        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"])
+
+    @classmethod
+    def par_nom(cls, nom: str) -> "ButcherTableau":
+        """Alias in English for `par_nom`."""
+        return cls.from_name(nom)
+
+    @classmethod
+    def available_schemes(cls):
+        """List names of available schemes."""
+        return list(_load_schemes().keys())
+

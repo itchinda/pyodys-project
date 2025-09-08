@@ -7,7 +7,7 @@ class Systeme(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
     
-    def evalue(self, t, u):
+    def evaluate_at(self, t, u):
         x, y = u
         return np.array([-x + y, -y])
 

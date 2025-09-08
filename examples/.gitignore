@@ -1,6 +1,6 @@
 __pycache__
 *.csv
-*.ipynb
 *.eps
-fatimata.py 
+*.png
+fatimata/ 
 test_hermite.py 

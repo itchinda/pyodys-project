@@ -6,7 +6,7 @@ from numpy.typing import ArrayLike
 class ODEProblem(ABC):
     """Abstract base class for systems of Ordinary Differential Equations (ODEs).
 
-    Any subclass must implement the :meth:`evalue` method, which defines the ODE system.
+    Any subclass must implement the :meth:`evaluate_at` method, which defines the ODE system.
 
     Attributes:
         t_init (float): Initial simulation time.
@@ -15,15 +15,16 @@ class ODEProblem(ABC):
         delta (float): Perturbation used for numerical Jacobian approximation.
     """
 
-    def __init__(self, t_init: float, t_final: float, initial_state: ArrayLike, delta: float = 1e-5, jacobian_is_constant : bool = False):
+    def __init__(self, t_init: float, t_final: float, initial_state: ArrayLike, delta: float = 1e-5, jacobian_is_constant: bool = False):
         """Initialize an ODE system.
 
         Args:
             t_init (float): Initial simulation time. Must be strictly less than `t_final`.
             t_final (float): Final simulation time. Must be strictly greater than `t_init`.
             initial_state (ArrayLike): Initial state vector of the system.
-                Must be convertible to a 1D NumPy array of floats.
+                                Must be convertible to a 1D NumPy array of floats.
             delta (float, optional): Perturbation for finite differences. Defaults to 1e-5.
+            jacobian_is_constant (bool, optional): Flag to indicate if the Jacobian is constant. Defaults to False.
 
         Raises:
             ValueError: If `t_final <= t_init`.
@@ -50,11 +51,10 @@ class ODEProblem(ABC):
         self.t_final = float(t_final)
         self.delta = float(delta)
         self.jacobian_is_constant = jacobian_is_constant
-
-
+        self._cached_jacobian = None
 
     @abstractmethod
-    def evalue(self, t: float, state: np.ndarray) -> np.ndarray:
+    def evaluate_at(self, t: float, state: np.ndarray) -> np.ndarray:
         """Evaluate the derivative of the system at time `t`.
 
         Args:
@@ -68,13 +68,14 @@ class ODEProblem(ABC):
             NotImplementedError: Must be implemented in subclasses.
         """
         raise NotImplementedError(
-            "Each subclass must implement the `evalue` method."
+            "Each subclass must implement the `evaluate_at` method."
         )
 
-    def jacobien(self, t: float, state: np.ndarray) -> np.ndarray:
+    def jacobian_at(self, t: float, state: np.ndarray) -> np.ndarray:
         """Compute the numerical Jacobian matrix of the ODE system.
 
         The Jacobian is approximated using central finite differences.
+        If the Jacobian is constant, it is computed only once and cached.
 
         Args:
             t (float): Current simulation time.
@@ -83,24 +84,32 @@ class ODEProblem(ABC):
         Returns:
             np.ndarray: Jacobian matrix of shape (n, n), where n is the dimension of `state`.
         """
-        n = len(state)
-        Jacobien = np.zeros((n, n), dtype=np.float64)
+        if self.jacobian_is_constant:
+            if self._cached_jacobian is None:
+                self._cached_jacobian = self._compute_jacobian(t, state)
+            return self._cached_jacobian
+        else:
+            return self._compute_jacobian(t, state)
 
-        state_temp = np.copy(state)
+    def _compute_jacobian(self, t: float, state: np.ndarray) -> np.ndarray:
+        """Helper method to compute the numerical Jacobian."""
+        n = len(state)
+        Jacobian = np.zeros((n, n), dtype=np.float64)
+        h = self.delta
+
+        perturbed_state = state.copy()
 
         for j in range(n):
-            # Perturbation to the right
-            state_temp[j] += self.delta
-            f_right = self.evalue(t, state_temp)
+            perturbed_state[j] += h
+            f_right = self.evaluate_at(t, perturbed_state)
 
-            # Perturbation to the left
-            state_temp[j] -= 2 * self.delta
-            f_left = self.evalue(t, state_temp)
+            perturbed_state[j] -= 2 * h
+            f_left = self.evaluate_at(t, perturbed_state)
 
-            # Central difference approximation
-            Jacobien[:, j] = (f_right - f_left) / (2 * self.delta)
+            # Central difference approximation for the j-th column
+            Jacobian[:, j] = (f_right - f_left) / (2 * h)
 
-            # Restore original value
-            state_temp[j] = state[j]
+            # Restore the original value for the next iteration
+            perturbed_state[j] = state[j]
 
-        return Jacobien
+        return Jacobian

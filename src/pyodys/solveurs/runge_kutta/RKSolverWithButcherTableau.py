@@ -29,6 +29,29 @@ class RKSolverWithButcherTableau(object):
     A Runge-Kutta solver for ordinary differential equations (ODEs) that
     can handle both explicit and implicit schemes. It supports adaptive
     time-stepping and efficient handling of sparse or dense Jacobians.
+
+    Jacobian handling policy
+    ------------------------
+    - If ``ode_problem.jacobian_is_constant = True``:
+      The Jacobian is computed once at initialization and reused for all
+      Newton iterations, stages, and steps.
+    
+    - If ``ode_problem.jacobian_is_constant = False``:
+      The Jacobian is recomputed once at the beginning of every time step.
+      If a Newton iteration fails to converge, the Jacobian is refreshed
+      and the Newton process is retried (up to ``max_jacobian_refresh`` times).
+
+    This policy ensures robustness by keeping the Jacobian current, while
+    avoiding unnecessary recomputations unless Newton convergence problems are detected.
+
+    Other features
+    --------------
+    - Explicit and implicit RK schemes
+    - Adaptive and fixed time stepping
+    - Automatic detection of sparse Jacobians
+    - CSV export of intermediate results
+    - Verbosity and progress reporting
+
     """
     def __init__(self, butcher_tableau=ButcherTableau.from_name("erk4"),
                  initial_step_size: float = None,
@@ -109,6 +132,10 @@ class RKSolverWithButcherTableau(object):
         self._jacobian_dense = None
         self._use_built_in_python_list = False
 
+        self._sparsity_ration_limit = 0.2
+
+        self.newton_failed = False
+
 
 
     def _print_verbose(self, message):
@@ -163,49 +190,69 @@ class RKSolverWithButcherTableau(object):
 
         Args:
             self: The instance of the RKSolverWithButcherTableau class.
-            F (ODEProblem): The ODEProblem object. This object is expected to have a method jacobien(t, u) that returns the Jacobian matrix of the ODE system.
+            F (ODEProblem): The ODEProblem object. This object is expected to have a method jacobian(t, u) that returns the Jacobian matrix of the ODE system.
             tn (float): The current time, used to evaluate the Jacobian at a specific point in the simulation.
             U_np (numpy.ndarray): The current state vector, used to evaluate the Jacobian at a specific state.
         """
-        # Compute Jacobian at initial state
-        J = F.jacobien(tn, U_np)
+        J = F.jacobian_at(tn, U_np)
+        n_eq = J.shape[0]
 
         if isspmatrix(J):
-            # --- Sparse Jacobian
+            # Always sparse if user returned sparse
             self._jacobian_is_sparse = True
             self._jacobian_csr = J.tocsr()
-
-            n_eq = J.shape[0]
             self._I_sparse = identity(n_eq, format="csr")
-
             if self.verbose:
                 density = self._jacobian_csr.nnz / (n_eq * n_eq)
-                print(f"Detected sparse Jacobian: size={n_eq}x{n_eq}, density={density:.3e}")
+                print(f"Sparse Jacobian returned by user: size={n_eq}x{n_eq}, density={density:.3e}")
 
         else:
-            # --- Dense Jacobian
-            self._jacobian_is_sparse = False
-            self._jacobian_dense = np.asarray(J, dtype=float)
+            # Dense returned
+            if self.auto_sparse_jacobian:
+                # check sparsity fraction
+                nz_frac = np.count_nonzero(J) / (n_eq * n_eq)
+                if nz_frac < self._sparsity_ration_limit:  # threshold: <20% nonzeros
+                    self._jacobian_is_sparse = True
+                    self._jacobian_csr = csr_matrix(J)
+                    self._I_sparse = identity(n_eq, format="csr")
+                    if self.verbose:
+                        print(f"Dense Jacobian treated as sparse: size={n_eq}x{n_eq}, density={nz_frac:.3e}")
+                else:
+                    self._jacobian_is_sparse = False
+                    self._jacobian_dense = np.asarray(J, dtype=float)
+                    self._I_dense = np.eye(n_eq)
+                    if self.verbose:
+                        print(f"Dense Jacobian treated as dense: size={n_eq}x{n_eq}")
+            else:
+                # Always use dense
+                self._jacobian_is_sparse = False
+                self._jacobian_dense = np.asarray(J, dtype=float)
+                self._I_dense = np.eye(n_eq)
+                if self.verbose:
+                    print(f"Dense Jacobian returned by user, using dense: size={n_eq}x{n_eq}")
 
-            n_eq = self._jacobian_dense.shape[0]
-            self._I_dense = np.eye(n_eq)
-
-            if self.verbose:
-                print(f"Detected dense Jacobian: size={n_eq}x{n_eq}")
-
-        # If Jacobian is constant, we can reuse it forever
-        if F.jacobian_is_constant:
-            if self.verbose:
-                print("Jacobian marked as constant → will be reused across all steps.")
-        else:
-            if self.verbose:
-                print("Jacobian marked as variable → will be recomputed at each stage refresh.")
+        if F.jacobian_is_constant and self.verbose:
+            print("Jacobian marked as constant → will be reused across all steps.")
+        elif self.verbose:
+            print("Jacobian marked as variable → will be recomputed at each stage refresh.")
 
 
     def _perform_single_rk_step(
             self, F: ODEProblem, tn: float, delta_t: float, U_np: np.ndarray
         ):
         """Perform one Runge-Kutta step based on the Butcher tableau.
+
+        Jacobian handling
+        -----------------
+            - If ``F.jacobian_is_constant = True``:
+              The Jacobian is computed once at initialization and reused for all
+              implicit stages and Newton iterations.
+        
+            - If ``F.jacobian_is_constant = False``:
+              The Jacobian is computed once at the start of this time step.
+              If Newton iterations fail to converge for an implicit stage, the
+              Jacobian is refreshed (up to ``max_jacobian_refresh`` times) and
+              the Newton iterations are retried.
         
         Args:
             self: The instance of the RKSolverWithButcherTableau class.
@@ -219,7 +266,7 @@ class RKSolverWithButcherTableau(object):
                 - U_n_plus_1 (numpy.ndarray): The computed solution at the next time step, u(tn+1).
                 - U_pred (numpy.ndarray): An approximation of the solution used for error estimation in adaptive stepping. If the method doesn't support an embedded solution, this will be a zero array.
                 - newton_not_happy (bool): A flag that is True if Newton's method failed to converge for any of the implicit stages, and False otherwise.
-        
+    
         """
 
         n_stages = self.butcher_tableau.n_stages
@@ -251,7 +298,7 @@ class RKSolverWithButcherTableau(object):
             for k in range(n_stages):
                 tn_k = tn + c[k] * delta_t
                 U_chap[:, k] = U_np + np.sum(a[k, :k] * value_f[:, :k], axis=1)
-                value_f[:, k] = delta_t * F.evalue(tn_k, U_chap[:, k])
+                value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
                 U_n += b[k] * value_f[:, k]
                 if self.with_prediction:
                     U_pred += d[k] * value_f[:, k]
@@ -263,7 +310,7 @@ class RKSolverWithButcherTableau(object):
             if a[k, k] == 0.0:  # no implicit coupling
                 tn_k = tn + c[k] * delta_t
                 U_chap[:, k] = U_chap_k
-                value_f[:, k] = delta_t * F.evalue(tn_k, U_chap[:, k])
+                value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
                 U_n += b[k] * value_f[:, k]
                 if self.with_prediction:
                     U_pred += d[k] * value_f[:, k]
@@ -277,12 +324,28 @@ class RKSolverWithButcherTableau(object):
             for refresh in range(self.max_jacobian_refresh + 1):
                 # recompute Jacobian if not constant
                 if not F.jacobian_is_constant:
-                    J = F.jacobien(tn_k, U_newton)
-                    if self._jacobian_is_sparse:
-                        self._jacobian_csr = J.tocsr() if isspmatrix(J) else csr_matrix(J)
+                    J = F.jacobian_at(tn_k, U_newton)
+                    if isspmatrix(J):
+                        self._jacobian_is_sparse = True
+                        self._jacobian_csr = J.tocsr()
+                        self._I_sparse = identity(n_eq, format="csr")
                     else:
-                        self._jacobian_dense = J
-                # assemble system matrix
+                        if self.auto_sparse_jacobian:
+                            density = np.count_nonzero(J) / (n_eq * n_eq)
+                            if density < self._sparsity_ration_limit:
+                                self._jacobian_is_sparse = True
+                                self._jacobian_csr = csr_matrix(J)
+                                self._I_sparse = identity(n_eq, format="csr")
+                            else:
+                                self._jacobian_is_sparse = False
+                                self._jacobian_dense = np.asarray(J, dtype=float)
+                                self._I_dense = np.eye(n_eq)
+                        else:
+                            self._jacobian_is_sparse = False
+                            self._jacobian_dense = np.asarray(J, dtype=float)
+                            self._I_dense = np.eye(n_eq)
+
+                # assemble system matrix and factorize
                 if self._jacobian_is_sparse:
                     A_sparse = self._I_sparse - delta_t_x_akk * self._jacobian_csr
                     LU = splu(A_sparse.tocsc())
@@ -291,9 +354,10 @@ class RKSolverWithButcherTableau(object):
                     A_dense = self._I_dense - delta_t_x_akk * self._jacobian_dense
                     LU_piv = lu_factor(A_dense)
                     solver = lambda rhs: lu_solve(LU_piv, rhs)
+
                 # Newton iterations
                 for iteration_newton in range(newton_nmax):
-                    residu = U_newton - (U_chap_k + delta_t_x_akk * F.evalue(tn_k, U_newton))
+                    residu = U_newton - (U_chap_k + delta_t_x_akk * F.evaluate_at(tn_k, U_newton))
                     try:
                         delta = solver(residu)
                     except (LinAlgError, RuntimeError, ValueError) as e:
@@ -315,7 +379,7 @@ class RKSolverWithButcherTableau(object):
                 return U_n, U_pred, newton_not_happy
             # store stage result
             U_chap[:, k] = U_newton
-            value_f[:, k] = delta_t * F.evalue(tn_k, U_newton)
+            value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_newton)
             U_n += b[k] * value_f[:, k]
             if self.with_prediction:
                 U_pred += d[k] * value_f[:, k]
@@ -342,14 +406,14 @@ class RKSolverWithButcherTableau(object):
 
         # compute the jacobian only once if constant!
         if ode_problem.jacobian_is_constant:
-            if self._jacobian_is_sparse == True:
-                J = ode_problem.jacobien(ode_problem.t_init, ode_problem.initial_state)
+            if self._jacobian_is_sparse == True and self._jacobian_csr is None:
+                J = ode_problem.jacobian_at(ode_problem.t_init, ode_problem.initial_state)
                 if isspmatrix(J):
                     self._jacobian_csr = J.tocsr()
                 else:
                     self._jacobian_csr = csr_matrix(J)
-            else:
-                self._jacobian_dense = ode_problem.jacobien(ode_problem.t_init, ode_problem.initial_state)
+            elif not self._jacobian_is_sparse and self._jacobian_dense is None:
+                self._jacobian_dense = ode_problem.jacobian_at(ode_problem.t_init, ode_problem.initial_state)
 
         if (not self.butcher_tableau.with_prediction) and self.adaptive_time_stepping:
             self._print_verbose(
@@ -391,7 +455,7 @@ class RKSolverWithButcherTableau(object):
 
         t_final = ode_problem.t_final
         step_size = self.initial_step_size
-        order = self.butcher_tableau.ordre
+        order = self.butcher_tableau.order
 
         number_of_time_steps = 0
         newton_failure_count = 0
@@ -420,6 +484,7 @@ class RKSolverWithButcherTableau(object):
                         "Stopping the simulation."
                     )
                     self._print_verbose(message)
+                    self.newton_failed = True
                     raise PyOdysError(message)
                 continue  # retry immediately at same time
 
@@ -473,7 +538,6 @@ class RKSolverWithButcherTableau(object):
         )
         return np.array(times[:number_of_time_steps+1], dtype=float), np.array(solutions[:number_of_time_steps+1], dtype=float)
 
-
     def _check_step_size(self, U_approx : np.ndarray, U_pred : np.ndarray, step_size : float, target_relative_error : float,
                           order : int, min_step_size : float, max_step_size : float, current_time : float, t_final : float):
         """Validate and adapt the time step size based on error estimates.
@@ -508,7 +572,11 @@ class RKSolverWithButcherTableau(object):
         #err = np.linalg.norm(U_approx - U_pred, 2) / (np.linalg.norm( U_pred, 2) + eps)
         err = np.linalg.norm((U_approx - U_pred) / (np.abs(U_pred)+1e-12), ord=2) #/ (np.linalg.norm( U_pred, 2) + eps)
         step_accepted = err < (1 + alpha) * target_relative_error
-        new_step_size = beta * step_size * (target_relative_error / max(err, eps)) ** (1.0 / (order))
+
+        if step_accepted and err > (1-alpha)*target_relative_error:
+            new_step_size = step_size
+        else:
+            new_step_size = beta * step_size * (target_relative_error / max(err, eps)) ** (1.0 / (order))
 
         if new_step_size < min_step_size:
             self._print_verbose(
@@ -521,12 +589,10 @@ class RKSolverWithButcherTableau(object):
             )
             new_step_size = max_step_size
 
-        new_time = current_time + step_size
-        if new_time + new_step_size > t_final:
-            new_step_size = max(t_final - new_time, 0.0)
-            if new_step_size <= 0:
-                step_accepted = True
-                new_step_size = 0.0
+        if step_accepted:
+            new_time = current_time + step_size
+            if new_time + new_step_size > t_final:
+                new_step_size = max(t_final - new_time, 0.0)
         return new_step_size, step_accepted
 
     def _solve_with_fixed_step_size(self, ode_problem: ODEProblem, step_size):
@@ -569,6 +635,7 @@ class RKSolverWithButcherTableau(object):
                 ode_problem, current_time, step_size, U_courant
             )
             if newton_not_happy:
+                self.newton_failed = True
                 message = f"Newton failed at time step {n+1} even after Jacobian refresh."
                 self._print_verbose(message)
                 raise PyOdysError(message)

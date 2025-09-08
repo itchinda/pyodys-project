@@ -95,7 +95,7 @@ def hermite_interpolate(xi: ArrayLike, yi: ArrayLike, f: Union[ODEProblem, Calla
     is_ODEProblem = isinstance(f, ODEProblem)
 
     for i in range(nbx):
-        deriv = f.evalue(xi[i], yi[i, :]) if is_ODEProblem else f(xi[i], yi[i, :])
+        deriv = f.evaluate_at(xi[i], yi[i, :]) if is_ODEProblem else f(xi[i], yi[i, :])
         deriv = np.atleast_1d(deriv)
         if deriv.shape[0] != nbeq:
             raise ValueError(f"Derivative at xi[{i}] has incorrect shape")

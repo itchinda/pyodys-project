@@ -40,13 +40,13 @@ class ParabolicProblem(ODEProblem):
         self.initial_state = np.asarray(u0_function(self.x), dtype=float).reshape(N,)
         super().__init__(t_init=t_init, t_final=t_final, initial_state=self.initial_state)
 
-    def evalue(self, t: float, u: np.ndarray) -> np.ndarray:
+    def evaluate_at(self, t: float, u: np.ndarray) -> np.ndarray:
         Au = self.A.dot(u)
         if self.forcing_func is None:
             return Au
         return Au + self.forcing_func(self.x, t)
 
-    def jacobien(self, t: float, u: np.ndarray):
+    def jacobian_at(self, t: float, u: np.ndarray):
         return self.A  # already sparse
 
 # ---------------- Exact solution ----------------
@@ -68,14 +68,14 @@ parabolic_problem = ParabolicProblem(N=Nx, t_init=t0, t_final=tf,
                                      forcing_func=forcing_vector)
 
 solver = RKSolverWithButcherTableau(
-    butcher_tableau=ButcherTableau.from_name("sdirk_norsett_thomson_23"),
-    initial_step_size=1e-5,
-    adaptive_time_stepping=True,
-    target_relative_error=1e-5,
-    min_step_size=1e-8,
-    max_step_size=1e-1,
-    auto_sparse_jacobian=True
-)
+                                    butcher_tableau=ButcherTableau.from_name("sdirk_norsett_thomson_23"),
+                                    initial_step_size=1e-5,
+                                    adaptive_time_stepping=True,
+                                    target_relative_error=1e-5,
+                                    min_step_size=1e-8,
+                                    max_step_size=1e-1,
+                                    auto_sparse_jacobian=True
+                                )
 
 # ---------------- Solve ----------------
 start = time.time()

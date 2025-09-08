@@ -98,7 +98,7 @@ class LamirandeSystem(ODEProblem):
         super().__init__(t_init, t_final, initial_state)
         # Specific Lorenz System Parameters
         
-    def evalue(self, t, Y):
+    def evaluate_at(self, t, Y):
         U, V, W, M_j, M_A, N_j, N_A, C_j, C_A, P, Q = Y
         E_PMj, E_PMA, E_PNj, E_PNA, E_PCj, E_PCA = calcule_rep1(M_j, M_A, N_j, N_A, C_j, C_A)
         E_QW, E_QMj, E_QNj, E_QCj = calcule_rep2(M_j, W, N_j, C_j)
@@ -130,15 +130,15 @@ if __name__ == '__main__':
                               initial_state=Y)
 
     # solver
-    solver = RKSolverWithButcherTableau(ButcherTableau.from_name('esdirk6'),                                    
-                                           initial_step_size=1e-10,
-                                           adaptive_time_stepping=True,
-                                           min_step_size=1e-10,
-                                           max_step_size=100,
-                                           target_relative_error=1e-8,
-                                           max_jacobian_refresh=1,
-                                           verbose=True, 
-                                           progress_interval_in_time=1.0)
+    solver = RKSolverWithButcherTableau(butcher_tableau=ButcherTableau.from_name('esdirk6'),                                    
+                                        initial_step_size=1e-10,
+                                        adaptive_time_stepping=True,
+                                        min_step_size=1e-10,
+                                        max_step_size=100,
+                                        target_relative_error=1e-8,
+                                        max_jacobian_refresh=1,
+                                        verbose=True, 
+                                        progress_interval_in_time=1.0)
 
     start=time.time()
     times, solutions = solver.solve( ode_problem=systeme )

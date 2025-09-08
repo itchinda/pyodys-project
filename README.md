@@ -101,7 +101,7 @@ class CoupledLinearSystem(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
     
-    def evalue(self, t, u):
+    def evaluate_at(self, t, u):
         x, y = u
         return np.array([-x + y, -y])
 
@@ -121,12 +121,12 @@ if __name__ == '__main__':
     ode_system = CoupledLinearSystem(t_init, t_final, u_init)
 
     # Use a SDIRK solver for demonstration
-    solver_sdirk = RKSolverWithButcherTableau(tableau_de_butcher = TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'),
-                                                 initial_step_size = 0.01,
-                                                 adaptive_time_stepping=True,
-                                                 min_step_size=1e-6,
-                                                 max_step_size=1.0,
-                                                 target_relative_error=1e-6)
+    solver_sdirk = RKSolverWithButcherTableau(butcher_tableau = TableauDeButcher.from_name('sdirk_hairer_norsett_wanner_45'),
+                                              initial_step_size = 0.01,
+                                              adaptive_time_stepping=True,
+                                              min_step_size=1e-6,
+                                              max_step_size=1.0,
+                                              target_relative_error=1e-6)
     times, solutions = solver_sdirk.solve( ode_system )
 
     # Compute analytical solution and errors
