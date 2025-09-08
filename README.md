@@ -90,8 +90,6 @@ $$y(t) = e^{-t}$$
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-
-# Using the top-level imports from the installed package
 from pyodys import ODEProblem, ButcherTableau, RKSolverWithButcherTableau
 
 # Define coupled linear system
