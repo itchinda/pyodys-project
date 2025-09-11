@@ -58,7 +58,7 @@ def u0_func(x):
     return np.sin(np.pi * x)
 
 # ---------------- Parameters ----------------
-Nx = 10000
+Nx = 100000
 t0, tf = 0.0, 1.0
 L = 1.0
 
@@ -74,7 +74,7 @@ solver = RKSolverWithButcherTableau(
                                     target_relative_error=1e-5,
                                     min_step_size=1e-8,
                                     max_step_size=1e-1,
-                                    auto_sparse_jacobian=True
+                                    auto_check_sparsity =True
                                 )
 
 # ---------------- Solve ----------------

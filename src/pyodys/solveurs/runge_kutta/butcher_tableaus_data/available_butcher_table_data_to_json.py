@@ -200,7 +200,7 @@ def _get_sdirk21_crouzeix_raviart():
     B = [b, b_embedded]
     C = [gamma, 1.0]
     
-    return {"A": A, "B": B, "C": C, "order": 1}
+    return {"A": A, "B": B, "C": C, "order": 2}
 
 def _get_sdirk_norsett_thomson_23():
     """
@@ -215,7 +215,7 @@ def _get_sdirk_norsett_thomson_23():
     bh = [26/61, 324/671, 1/11] # Order 2 solution for prediction
     B = [b, bh]
     C = [5/6, 29/108, 1/6]
-    return {"A": A, "B": B, "C": C, "order": 2}
+    return {"A": A, "B": B, "C": C, "order": 3}
 
 def _get_sdirk_norsett_thomson_34():
     """Returns the data for the SDIRK scheme."""
@@ -235,7 +235,7 @@ def _get_sdirk_norsett_thomson_34():
         "A": A,
         "B": B,
         "C": C,
-        "order": 3
+        "order": 4
     }
 
 def _get_sdirk_hairer_norsett_wanner_45():
@@ -253,7 +253,7 @@ def _get_sdirk_hairer_norsett_wanner_45():
     bh = [25/24, -49/48, 125/16, -85/12, 1/4] # Order 4 solution for prediction
     B = [b, bh]
     C = [1/4, 3/4, 11/20, 1/2, 1.0]
-    return {"A": A, "B": B, "C": C, "order": 4}
+    return {"A": A, "B": B, "C": C, "order": 5}
 
 def _get_esdirk6():
 

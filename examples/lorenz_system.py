@@ -43,7 +43,7 @@ if __name__ == '__main__':
                         help='The Runge-Kutta method to use.')
     parser.add_argument('--step-size', '-s', 
                         type=float, 
-                        default=1e-8,
+                        default=1e-2,
                         help='The initial time step size.')
     parser.add_argument('--final-time', '-t', 
                         type=float, 
@@ -53,8 +53,8 @@ if __name__ == '__main__':
                         type=float,
                         default=1e-10,
                         help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive-stepping', 
-                        action='store_false', 
+    parser.add_argument('--adaptive-stepping', 
+                        action='store_true', 
                         dest='adaptive_stepping',
                         help='Disable adaptive time stepping.')
     parser.add_argument('--min-step-size','-n', 
@@ -68,6 +68,9 @@ if __name__ == '__main__':
     parser.add_argument('--save-csv', 
                         action='store_true', 
                         help='Save the results to a CSV file.')
+    parser.add_argument('--verbose', '-v',
+                        action='store_true',
+                        help='Print progress info.')
 
     args = parser.parse_args()
 
@@ -85,7 +88,8 @@ if __name__ == '__main__':
                                         adaptive_time_stepping=args.adaptive_stepping,
                                         target_relative_error=args.tolerance, 
                                         min_step_size=args.min_step_size, 
-                                        max_step_size=args.max_step_size)
+                                        max_step_size=args.max_step_size,
+                                        verbose=args.verbose if args.verbose else False)
 
     times, solutions = solver.solve( ode_problem = lorenz_system )
 

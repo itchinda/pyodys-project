@@ -8,7 +8,7 @@ class LinearSystem(ODEProblem):
     """Simple linear system: dx/dt = Ax."""
 
     def __init__(self, t_init, t_final, initial_state, A, **kwargs):
-        super().__init__(t_init, t_final, initial_state, **kwargs)
+        super().__init__(t_init=t_init, t_final=t_final, initial_state=initial_state,  mass_matrix_is_identity = True, **kwargs)
         self.A = np.array(A, dtype=np.float64)
 
     def evaluate_at(self, t, state):
@@ -72,4 +72,4 @@ def test_jacobian_linear_system_nontrivial():
 
 def test_cannot_instantiate_base_class():
     with pytest.raises(TypeError):
-        ODEProblem(0.0, 1.0, [1.0])  # should fail since abstract
+        ODEProblem(t_init=0.0, t_final=1.0, initial_state=[1.0],  mass_matrix_is_identity = True)  # should fail since abstract

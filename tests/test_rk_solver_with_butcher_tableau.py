@@ -12,7 +12,7 @@ class ExponentialDecay(ODEProblem):
     Simple test system: u'(t) = -u, solution u(t) = exp(-t).
     """
     def __init__(self, u0=1.0, t_init=0.0, t_final=1.0):
-        super().__init__(t_init, t_final, u0)
+        super().__init__(t_init, t_final, [u0], mass_matrix_is_identity=True)
 
     def evaluate_at(self, t, u):
         return -u
@@ -65,7 +65,7 @@ def test_invalid_tableau_type_raises():
 # Define a stiff problem
 class StiffProblem(ODEProblem):
     def __init__(self, t_init, t_final, initial_state):
-        super().__init__(t_init, t_final, initial_state)
+        super().__init__(t_init, t_final, initial_state, mass_matrix_is_identity=True)
         
     def evaluate_at(self, t, u):
         x, y = u
@@ -171,7 +171,7 @@ def test_detect_jacobian_sparsity_dense_and_sparse():
     bt = ButcherTableau.par_nom(ButcherTableau.available_schemes()[0])
     solver = RKSolverWithButcherTableau(bt, initial_step_size=0.1)
     system = ExponentialDecay()
-    solver._detect_jacobian_sparsity(system, 0.0, system.initial_state)
+    solver._detect_sparsity(system, 0.0, system.initial_state)
     assert solver._jacobian_is_sparse is False
 
     # force sparse Jacobian
@@ -179,7 +179,7 @@ def test_detect_jacobian_sparsity_dense_and_sparse():
     class SparseSystem(ExponentialDecay):
         def jacobian_at(self, t, u):
             return sp.csr_matrix((1,1))
-    solver._detect_jacobian_sparsity(SparseSystem(), 0.0, np.array([1.0]))
+    solver._detect_sparsity(SparseSystem(), 0.0, np.array([1.0]))
     assert solver._jacobian_is_sparse is True
 
 def test_check_step_size_rejects_large_error():
@@ -201,7 +201,7 @@ def test_check_step_size_rejects_large_error():
 class NonlinearProblem(ODEProblem):
     """Pathological nonlinear system that makes Newton iterations struggle."""
     def __init__(self):
-        super().__init__(0.0, 1.0, np.array([1.0]))
+        super().__init__(0.0, 1.0, np.array([1.0]), mass_matrix_is_identity=True)
 
     def evaluate_at(self, t, u):
         return np.array([np.sin(u[0]) + 10.0])
