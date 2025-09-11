@@ -350,7 +350,7 @@ class RKSolverWithButcherTableau(object):
 
         newton_not_happy = False
         U_chap = np.zeros((n_eq, n_stages))
-        value_f = np.zeros((n_eq, n_stages))
+        deltat_x_value_f = np.zeros((n_eq, n_stages))
 
         newton_nmax = self.newton_nmax
         newton_atol = self.newton_atol
@@ -363,11 +363,11 @@ class RKSolverWithButcherTableau(object):
         if self._is_erk:
             for k in range(n_stages):
                 tn_k = tn + c[k] * delta_t
-                U_chap[:, k] = U_np + np.sum(a[k, :k] * value_f[:, :k], axis=1)
-                value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
-                U_n += b[k] * value_f[:, k]
+                U_chap[:, k] = U_np + np.sum(a[k, :k] * deltat_x_value_f[:, :k], axis=1)
+                deltat_x_value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
+                U_n += b[k] * deltat_x_value_f[:, k]
                 if self._with_prediction:
-                    U_pred += d[k] * value_f[:, k]
+                    U_pred += d[k] * deltat_x_value_f[:, k]
             return U_n, U_pred, newton_not_happy
         
 
@@ -376,8 +376,8 @@ class RKSolverWithButcherTableau(object):
 
         tn_k = tn
 
-        first_implicit_stage_idx = np.diag(self.butcher_tableau.A).nonzero()[0][0]
-        gamma = self.butcher_tableau.A[first_implicit_stage_idx, first_implicit_stage_idx]
+        first_implicit_stage_idx = np.diag(a).nonzero()[0][0]
+        gamma = a[first_implicit_stage_idx, first_implicit_stage_idx]
         for refresh_attempt in range(self.max_jacobian_refresh + 1):
             
             if not self._jacobian_constant_and_sdirk_and_fixed_step_size:
@@ -412,14 +412,14 @@ class RKSolverWithButcherTableau(object):
         
             newton_failed = False
             for k in range(n_stages):
-                U_chap_k = U_np + np.sum(a[k, :k] * value_f[:, :k], axis=1)
+                U_chap_k = U_np + np.sum(a[k, :k] * deltat_x_value_f[:, :k], axis=1)
                 if a[k, k] == 0.0:  # no implicit coupling # USEFULL FOR ESDIRK SCHEMES!
                     tn_k = tn + c[k] * delta_t
                     U_chap[:, k] = U_chap_k
-                    value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
-                    U_n += b[k] * value_f[:, k]
+                    deltat_x_value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
+                    U_n += b[k] * deltat_x_value_f[:, k]
                     if self._with_prediction:
-                        U_pred += d[k] * value_f[:, k]
+                        U_pred += d[k] * deltat_x_value_f[:, k]
                     continue
 
                 # --- Implicit stage: Newton solve
@@ -443,7 +443,9 @@ class RKSolverWithButcherTableau(object):
                 # Newton iterations
                 newton_succeeded = False
                 for iteration_newton in range(newton_nmax):
-                    residu = U_newton - (U_chap_k + delta_t_x_akk * F.evaluate_at(tn_k, U_newton))
+                    # The original problem to folve is : Find K_k s.t. K_k - h* f(t_nk, u_chap_k + akk*K_k) = 0. We can set X = u_chap_k + akk*K_k to end with
+                    #                                               X - u_chap_k - h*akk*f(t_nk, X) = 0, X being the new unknown.
+                    residu = U_newton - (U_chap_k + delta_t_x_akk * F.evaluate_at(tn_k, U_newton)) 
                     try:
                         delta = linear_solver(residu)
                     except (LinAlgError, RuntimeError, ValueError) as e:
@@ -461,10 +463,10 @@ class RKSolverWithButcherTableau(object):
 
                 # store stage result
                 U_chap[:, k] = U_newton
-                value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_newton)
-                U_n += b[k] * value_f[:, k]
+                deltat_x_value_f[:, k] = (U_newton - U_chap_k) / a[k,k] # = delta_t * F.evaluate_at(tn_k, U_newton). Be smart, avoid calling f again!!
+                U_n += b[k] * deltat_x_value_f[:, k]
                 if self._with_prediction:
-                    U_pred += d[k] * value_f[:, k]
+                    U_pred += d[k] * deltat_x_value_f[:, k]
 
             if not newton_failed:
                 newton_not_happy = False
