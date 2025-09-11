@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from numpy.typing import ArrayLike
-
+from scipy.sparse import identity
 
 class ODEProblem(ABC):
-    """Abstract base class for systems of Ordinary Differential Equations (ODEs).
+    """Abstract base class for systems of Ordinary Differential Equations (ODEs). General form: M(t, u) dudt = F(t, u)
 
     Any subclass must implement the :meth:`evaluate_at` method, which defines the ODE system.
 
@@ -15,7 +15,14 @@ class ODEProblem(ABC):
         delta (float): Perturbation used for numerical Jacobian approximation.
     """
 
-    def __init__(self, t_init: float, t_final: float, initial_state: ArrayLike, delta: float = 1e-5, jacobian_is_constant: bool = False):
+    def __init__(self, t_init: float, 
+                 t_final: float, 
+                 initial_state: ArrayLike, 
+                 delta: float = 1e-5, 
+                 jacobian_is_constant: bool = False,
+                 mass_matrix_is_constant: bool = True,
+                 mass_matrix_is_identity: bool = False,
+                 mass_matrix_jacobian_is_null: bool = True):
         """Initialize an ODE system.
 
         Args:
@@ -50,8 +57,17 @@ class ODEProblem(ABC):
         self.t_init = float(t_init)
         self.t_final = float(t_final)
         self.delta = float(delta)
+
         self.jacobian_is_constant = jacobian_is_constant
         self._cached_jacobian = None
+
+        self.mass_matrix_is_constant = mass_matrix_is_constant
+        self._cached_mass_matrix = None
+
+        self.mass_matrix_is_identity = mass_matrix_is_identity
+
+        self.number_of_equations = len(initial_state)
+        self.mass_matrix_jacobian_is_null = mass_matrix_jacobian_is_null 
 
     @abstractmethod
     def evaluate_at(self, t: float, state: np.ndarray) -> np.ndarray:
@@ -113,3 +129,27 @@ class ODEProblem(ABC):
             perturbed_state[j] = state[j]
 
         return Jacobian
+    
+    def _compute_mass_matrix(self, t: float, state: np.ndarray):
+        """
+        Helper method for subclasses to implement.
+
+        This method must be implemented if mass_matrix_is_identity is False
+        and mass_matrix_is_constant is False.
+        """
+        raise NotImplementedError(
+            "This method must be implemented by the subclass because `mass_matrix_is_identity` "
+            "is set to False and the mass matrix is not constant or not provided."
+        )
+
+    def mass_matrix_at(self, t: float, state: np.ndarray):
+        if self.mass_matrix_is_identity:
+            return identity(self.number_of_equations, format='csr') if self.number_of_equations else np.eye(self.number_of_equations)
+
+        if self.mass_matrix_is_constant:
+            if self._cached_mass_matrix is None:
+                self._cached_mass_matrix = self._compute_mass_matrix(t, state)
+            return self._cached_mass_matrix
+
+        # If not constant or identity, we must compute it at each step
+        return self._compute_mass_matrix(t, state)

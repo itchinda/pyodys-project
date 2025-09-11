@@ -157,8 +157,12 @@ class ButcherTableau:
         if not all(np.issubdtype(arr.dtype, np.number) for arr in [A, B, C]):
             raise TypeError("Les tableaux A, B, et C doivent contenir des nombres (entiers ou réels).")
         if check_consistency:
-            if not np.allclose(C, np.sum(A, axis=1), rtol=1e-14, atol=1e-14):
+            if not np.allclose(C, np.sum(A, axis=1), rtol=1e-14, atol=1e-14):  # NOT REALLY NECESSARY FOR CONSISTENCY, BUT THIS IS GENERALLY THE CONDITION IMPOSED TO SATISFY A SPECIFIC ORDER
                 raise ValueError("Sum of A per row does not match C.")
+            if B.ndim == 1 and not np.isclose(1.0, np.sum(B), rtol=1e-14, atol = 1e-14):
+                raise ValueError("Sum of B coefficients does not match 1.") # MOST BE SATISFIED FOR CONSISTENCY
+            elif B.ndim == 2 and not np.allclose(np.ones(2, dtype=float), np.sum(B, axis=1), rtol=1e-14, atol = 1e-14):
+                raise ValueError("Sum of B coefficients per rows does not match 1.") # MOST BE SATISFIED FOR CONSISTENCY
 
         # Shape checks
         rows_A, cols_A = A.shape

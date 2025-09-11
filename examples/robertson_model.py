@@ -54,10 +54,10 @@ def extract_args():
                         type=float,
                         default=1e-6,
                         help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive-stepping', 
-                        action='store_false', 
+    parser.add_argument('--adaptive-stepping', 
+                        action='store_true', 
                         dest='adaptive_stepping',
-                        help='Disable adaptive time stepping.')
+                        help='Enable adaptive time stepping.')
     parser.add_argument('--min-step-size','-n', 
                         type=float,
                         default=1e-8,
@@ -72,6 +72,11 @@ def extract_args():
     parser.add_argument('--save-png', 
                         action='store_true', 
                         help='Save the results to a png file.')
+    parser.add_argument('--verbose', '-v',
+                        action='store_true',
+                        help='Print progress info.')
+
+
     return parser.parse_args()
 
 

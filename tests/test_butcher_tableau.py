@@ -89,10 +89,10 @@ def test_check_consistency_pass():
 def test_check_consistency_fail():
     # A does NOT match C
     A = np.array([[0.0, 0.0], [0.5, 0.0]])
-    B = np.array([0.5, 0.5])
-    C = np.array([0.0, 1.0])
+    B = np.array([0.5, 0.75])
+    C = np.array([0.0, 0.5])
     
-    with pytest.raises(ValueError, match="Sum of A per row does not match C"):
+    with pytest.raises(ValueError, match="Sum of B coefficients does not match 1."):
         ButcherTableau(A, B, C, 2, check_consistency=True)
 
 def test_check_consistency_default():
