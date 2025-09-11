@@ -58,7 +58,7 @@ def u0_func(x):
     return np.sin(np.pi * x)
 
 # ---------------- Parameters ----------------
-Nx = 100000
+Nx = 10000
 t0, tf = 0.0, 1.0
 L = 1.0
 
@@ -68,10 +68,10 @@ parabolic_problem = ParabolicProblem(N=Nx, t_init=t0, t_final=tf,
                                      forcing_func=forcing_vector)
 
 solver = RKSolverWithButcherTableau(
-                                    butcher_tableau=ButcherTableau.from_name("sdirk_norsett_thomson_23"),
+                                    butcher_tableau=ButcherTableau.from_name("esdirk6"),
                                     initial_step_size=1e-5,
                                     adaptive_time_stepping=True,
-                                    target_relative_error=1e-5,
+                                    target_relative_error=1e-8,
                                     min_step_size=1e-8,
                                     max_step_size=1e-1,
                                     auto_check_sparsity =True
