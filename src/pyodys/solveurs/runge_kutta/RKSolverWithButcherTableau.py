@@ -13,10 +13,10 @@ class PyOdysError(RuntimeError):
     def __init__(self, message):
         super().__init__(message)
 
-class UnsupportedSchemeError(RuntimeError):
-    """Exception raised when a General Implicit RK scheme is passed by a user"""
-    def __init__(self, message):
-        super().__init__(message)
+# class UnsupportedSchemeError(RuntimeError):
+#     """Exception raised when a General Implicit RK scheme is passed by a user"""
+#     def __init__(self, message):
+#         super().__init__(message)
 
 def wrms_norm(delta, u, atol=1e-12, rtol=1e-6):
     """
@@ -108,7 +108,7 @@ class RKSolverWithButcherTableau(object):
         if adaptive_time_stepping and target_relative_error == None:
             raise TypeError("Since you choose adaptive time stepping, you must specify the the target relative error.")
         if butcher_tableau.is_implicit and not butcher_tableau.is_diagonally_implicit:
-            raise UnsupportedSchemeError("General Implicit Runge-Kutta schemes are not supported. Consider using a Diagonally Implicit scheme instead.")
+            raise PyOdysError("General Implicit Runge-Kutta schemes are not currently supported. Consider using a Diagonally Implicit scheme instead.")
         
         self.butcher_tableau = butcher_tableau
         self.initial_step_size = initial_step_size
@@ -135,13 +135,13 @@ class RKSolverWithButcherTableau(object):
         self._sparsity_checked = False
         self._jacobian_is_sparse = None
         self._mass_matrix_is_sparse = None
+        self._using_sparse_algebra = False
 
         self._I_dense = None
         self._I_sparse = None
-        self._jacobian_csr = None
-        self._jacobian_dense = None
-        self._mass_matrix_csr = None
-        self._mass_matrix_dense = None
+        self._jacobianF_csr = None
+        self._jacobianF_dense = None
+        self._mass_matrix = None
         self._use_built_in_python_list = False
 
         self._is_dirk = butcher_tableau.is_diagonally_implicit
@@ -207,7 +207,7 @@ class RKSolverWithButcherTableau(object):
 
         Args:
             self: The instance of the RKSolverWithButcherTableau class.
-            F (ODEProblem): The ODEProblem object. This object is expected to have a method jacobian(t, u) that returns the Jacobian matrix of the ODE system.
+            F (ODEProblem): The ODEProblem object. This object is expected to have a method jacobian_at(t, u) that returns the Jacobian matrix of the ODE system.
             tn (float): The current time, used to evaluate the Jacobian at a specific point in the simulation.
             U_np (numpy.ndarray): The current state vector, used to evaluate the Jacobian at a specific state.
         """
@@ -217,10 +217,10 @@ class RKSolverWithButcherTableau(object):
         if isspmatrix(J):
             # Always sparse if user returned sparse
             self._jacobian_is_sparse = True
-            self._jacobian_csr = J.tocsr()
+            self._jacobianF_csr = J.tocsr()
             self._I_sparse = identity(n_eq, format="csr")
             if self.verbose:
-                density = self._jacobian_csr.nnz / (n_eq * n_eq)
+                density = self._jacobianF_csr.nnz / (n_eq * n_eq)
                 print(f"Sparse Jacobian returned by user: size={n_eq}x{n_eq}, density={density:.3e}")
 
         else:
@@ -230,20 +230,20 @@ class RKSolverWithButcherTableau(object):
                 nz_frac = np.count_nonzero(J) / (n_eq * n_eq)
                 if nz_frac < self.sparsity_ration_limit:  # threshold: <20% nonzeros
                     self._jacobian_is_sparse = True
-                    self._jacobian_csr = csr_matrix(J)
+                    self._jacobianF_csr = csr_matrix(J)
                     self._I_sparse = identity(n_eq, format="csr")
                     if self.verbose:
                         print(f"Dense Jacobian treated as sparse: size={n_eq}x{n_eq}, density={nz_frac:.3e}")
                 else:
                     self._jacobian_is_sparse = False
-                    self._jacobian_dense = np.asarray(J, dtype=float)
+                    self._jacobianF_dense = np.asarray(J, dtype=float)
                     self._I_dense = np.eye(n_eq)
                     if self.verbose:
                         print(f"Dense Jacobian treated as dense: size={n_eq}x{n_eq}")
             else:
                 # Always use dense
                 self._jacobian_is_sparse = False
-                self._jacobian_dense = np.asarray(J, dtype=float)
+                self._jacobianF_dense = np.asarray(J, dtype=float)
                 self._I_dense = np.eye(n_eq)
                 if self.verbose:
                     print(f"Dense Jacobian returned by user, using dense: size={n_eq}x{n_eq}")
@@ -253,56 +253,95 @@ class RKSolverWithButcherTableau(object):
         elif self.verbose:
             print("Jacobian marked as variable → will be recomputed at each stage refresh.")
 
-    # def _detect_global_sparsity(self, F: ODEProblem, tn: float, U_np: np.ndarray, h: float):
-    #     non_zero_diagonals = np.diag(self.butcher_tableau.A).nonzero()[0]
-    #     if non_zero_diagonals.size > 0:
-    #         first_implicit_stage_index = non_zero_diagonals[0]
-    #         a_ii = self.butcher_tableau.A[first_implicit_stage_index, first_implicit_stage_index]
-    #     else:
-    #         a_ii = 0.0
+    def _detect_global_sparsity(self, F: ODEProblem, tn: float, U_np: np.ndarray, h: float):
+        non_zero_diagonals = np.diag(self.butcher_tableau.A).nonzero()[0]
+        if non_zero_diagonals.size > 0:
+            first_implicit_stage_index = non_zero_diagonals[0]
+            a_ii = self.butcher_tableau.A[first_implicit_stage_index, first_implicit_stage_index]
+        else:
+            a_ii = 0.0
 
-    #     n_eq = F.number_of_equations
+        n_eq = F.number_of_equations
 
-    #     if a_ii != 0:
-    #         J = F.jacobian_at(tn, U_np)
-    #         J_sparse = J.tocsr() if isspmatrix(J) else csr_matrix(J)
         
-    #     M = F.mass_matrix_at(tn, U_np)
-    #     M_sparse = M.tocsr() if isspmatrix(M) else csr_matrix(M)
+        Jf = F.jacobian_at(tn, U_np)
+        J_sparse = Jf.tocsr() if isspmatrix(Jf) else csr_matrix(Jf)
+    
+        M = F.mass_matrix_at(tn, U_np)
+        M_sparse = M.tocsr() if isspmatrix(M) else csr_matrix(M)
 
-    #     # Build a test matrix A for the sparsity check
-    #     A_sparse = M_sparse - h * a_ii * J_sparse if a_ii
+        # Build a test matrix A for the sparsity check
+        A_sparse = M_sparse - h * a_ii * J_sparse
 
-    #     # Decide based on the final system matrix's sparsity
-    #     nz_frac = A_sparse.nnz / (n_eq * n_eq)
+        # Decide based on the final system matrix's sparsity
+        nz_frac = A_sparse.nnz / (n_eq * n_eq)
 
-    #     self.use_sparse_algebra = False # Default to dense
-    #     if nz_frac < self.sparse_threshold_ratio:
-    #         self.use_sparse_algebra = True
+        self._using_sparse_algebra = False # Default to dense
+        if nz_frac < self.sparsity_ration_limit:
+            self._using_sparse_algebra = True
 
-    #     if self.use_sparse_algebra:
-    #         # Cache matrices in sparse format
-    #         self._J_cached = J_sparse
-    #         self._M_cached = M_sparse
-    #         self._I_sparse = identity(n_eq, format="csr")
-    #         if self.verbose:
-    #             print(f"Global sparsity check: USING SPARSE ALGEBRA. Density = {nz_frac:.3e}")
-    #     else:
-    #         # Cache matrices in dense format
-    #         self._J_cached = J_sparse.toarray()
-    #         self._M_cached = M_sparse.toarray()
-    #         self._I_dense = np.eye(n_eq)
-    #         if self.verbose:
-    #             print(f"Global sparsity check: USING DENSE ALGEBRA. Density = {nz_frac:.3e}")
+        if self._using_sparse_algebra:
+            # Cache matrices in sparse format
+            self._J_cached = J_sparse
+            self._M_cached = M_sparse
+            self._I_sparse = identity(n_eq, format="csr")
+            if self.verbose:
+                print(f"Global sparsity check: USING SPARSE ALGEBRA. Density = {nz_frac:.3e}")
+        else:
+            # Cache matrices in dense format
+            self._J_cached = J_sparse.toarray()
+            self._M_cached = M_sparse.toarray()
+            self._I_dense = np.eye(n_eq)
+            if self.verbose:
+                print(f"Global sparsity check: USING DENSE ALGEBRA. Density = {nz_frac:.3e}")
 
-    #     # Handle constant matrices as a final step
-    #     if F.jacobian_is_constant:
-    #         self.J = self._J_cached
-    #         self.J_is_constant = True
-    #     if F.mass_matrix_is_constant:
-    #         self.M = self._M_cached
-    #         self.M_is_constant = True
+        # Handle constant matrices as a final step
+        if F.jacobian_is_constant:
+            self.J = self._J_cached
+            self.J_is_constant = True
+        if F.mass_matrix_is_constant:
+            self.M = self._M_cached
+            self.M_is_constant = True
 
+    def _get_mass_matrix_jacobian_times_d(ode_problem: ODEProblem, t: float, y: np.ndarray, d: np.ndarray, eps=None, central=True):
+        """
+        Compute J(t,y) @ d = directional derivative of the mass matrix of a given ODE problem, wrt y in direction d.
+
+        Parameters
+        ----------
+        ode_problem (ODEProblem): The ODEProblem object. This object is expected to have a method mass_matrix_at(t, u) that returns 
+                                  the NxN Mass matrix of the ODE/ADE system.
+        t : float
+            Time parameter
+        y : array_like, shape (N,)
+            State vector
+        d : array_like, shape (N,)
+            Direction vector
+        eps : float, optional
+            Step size for finite difference (chosen automatically if None)
+        central : bool, default True
+            Use central difference (more accurate, 2 evaluations) or forward difference (1 evaluation)
+
+        Returns
+        -------
+        Jd : ndarray, shape (N, N)
+            Matrix equal to J(t,y) @ d
+        """
+        y = np.asarray(y, dtype=float)
+        d = np.asarray(d, dtype=float)
+
+        if eps is None:
+            eps = np.sqrt(np.finfo(float).eps) * (1 + np.linalg.norm(y)) / (np.linalg.norm(d) + 1e-20)
+
+        if central:
+            M_plus  = ode_problem.mass_matrix_at(t, y + eps * d)
+            M_minus = ode_problem.mass_matrix_at(t, y - eps * d)
+            return (M_plus - M_minus) / (2 * eps)
+        else:
+            M0 = ode_problem.mass_matrix_at(t, y)
+            M1 = ode_problem.mass_matrix_at(t, y + eps * d)
+            return (M1 - M0) / eps
+    
     def _perform_single_rk_step(
             self, F: ODEProblem, tn: float, delta_t: float, U_np: np.ndarray
         ):
@@ -381,15 +420,15 @@ class RKSolverWithButcherTableau(object):
         for refresh_attempt in range(self.max_jacobian_refresh + 1):
             
             if not self._jacobian_constant_and_sdirk_and_fixed_step_size:
-                J = F.jacobian_at(tn_k, U_n)
+                Jf = F.jacobian_at(tn_k, U_n)
                 if self._jacobian_is_sparse:
-                    if isspmatrix(J):
-                        self._jacobian_csr = J.tocsr()
+                    if isspmatrix(Jf):
+                        self._jacobianF_csr = Jf.tocsr()
                     else:
-                        self._jacobian_csr = csr_matrix(J)
+                        self._jacobianF_csr = csr_matrix(Jf)
                     assert self._I_sparse is not None
                 else:
-                    self._jacobian_dense = np.asarray(J, dtype=float)
+                    self._jacobianF_dense = np.asarray(Jf, dtype=float)
                     assert self._I_dense is not None
             
             solver = None
@@ -401,11 +440,11 @@ class RKSolverWithButcherTableau(object):
             elif (self._is_sdirk or self._is_esdirk):
                 delta_t_x_gamma = delta_t*gamma 
                 if self._jacobian_is_sparse:
-                    A_sparse = self._I_sparse - delta_t_x_gamma * self._jacobian_csr
+                    A_sparse = self._I_sparse - delta_t_x_gamma * self._jacobianF_csr
                     LU = splu(A_sparse.tocsc())
                     solver_sdirk = LU.solve
                 else:
-                    A_dense = self._I_dense - delta_t_x_gamma * self._jacobian_dense
+                    A_dense = self._I_dense - delta_t_x_gamma * self._jacobianF_dense
                     LU_piv = lu_factor(A_dense)
                     solver_sdirk = lambda rhs: lu_solve(LU_piv, rhs)
 
@@ -432,11 +471,11 @@ class RKSolverWithButcherTableau(object):
                 else:
                     #assemble system matrix and factorize
                     if self._jacobian_is_sparse:
-                        A_sparse = self._I_sparse - delta_t_x_akk * self._jacobian_csr
+                        A_sparse = self._I_sparse - delta_t_x_akk * self._jacobianF_csr
                         LU = splu(A_sparse.tocsc())
                         linear_solver = LU.solve
                     else:
-                        A_dense = self._I_dense - delta_t_x_akk * self._jacobian_dense
+                        A_dense = self._I_dense - delta_t_x_akk * self._jacobianF_dense
                         LU_piv = lu_factor(A_dense)
                         linear_solver = lambda rhs: lu_solve(LU_piv, rhs)
 
@@ -445,7 +484,14 @@ class RKSolverWithButcherTableau(object):
                 for iteration_newton in range(newton_nmax):
                     # The original problem to folve is : Find K_k s.t. K_k - h* f(t_nk, u_chap_k + akk*K_k) = 0. We can set X = u_chap_k + akk*K_k to end with
                     #                                               X - u_chap_k - h*akk*f(t_nk, X) = 0, X being the new unknown.
-                    residu = U_newton - (U_chap_k + delta_t_x_akk * F.evaluate_at(tn_k, U_newton)) 
+                    residu = None
+                    if F.mass_matrix_is_identity:
+                        residu = U_newton - (U_chap_k + delta_t_x_akk * F.evaluate_at(tn_k, U_newton)) 
+                    else:
+                        if F.mass_matrix_is_constant:
+                            residu = self._mass_matrix*(U_newton - U_chap_k) - delta_t_x_akk * F.evaluate_at(tn_k, U_newton) 
+                        else:
+                            residu = F.mass_matrix_at(tn_k, U_newton)*(U_newton - U_chap_k) - delta_t_x_akk * F.evaluate_at(tn_k, U_newton) 
                     try:
                         delta = linear_solver(residu)
                     except (LinAlgError, RuntimeError, ValueError) as e:
@@ -496,14 +542,14 @@ class RKSolverWithButcherTableau(object):
 
         # compute the jacobian only once if constant!
         if ode_problem.jacobian_is_constant:
-            if self._jacobian_is_sparse == True and self._jacobian_csr is None:
+            if self._jacobian_is_sparse == True and self._jacobianF_csr is None:
                 J = ode_problem.jacobian_at(ode_problem.t_init, ode_problem.initial_state)
                 if isspmatrix(J):
-                    self._jacobian_csr = J.tocsr()
+                    self._jacobianF_csr = J.tocsr()
                 else:
-                    self._jacobian_csr = csr_matrix(J)
-            elif not self._jacobian_is_sparse and self._jacobian_dense is None:
-                self._jacobian_dense = ode_problem.jacobian_at(ode_problem.t_init, ode_problem.initial_state)
+                    self._jacobianF_csr = csr_matrix(J)
+            elif not self._jacobian_is_sparse and self._jacobianF_dense is None:
+                self._jacobianF_dense = ode_problem.jacobian_at(ode_problem.t_init, ode_problem.initial_state)
 
         if (not self._with_prediction) and self.adaptive_time_stepping:
             self._print_verbose(
@@ -727,11 +773,11 @@ class RKSolverWithButcherTableau(object):
             delta_t_x_gamma = step_size*gamma 
 
             if self._jacobian_is_sparse:
-                A_sparse = self._I_sparse - delta_t_x_gamma * self._jacobian_csr
+                A_sparse = self._I_sparse - delta_t_x_gamma * self._jacobianF_csr
                 LU = splu(A_sparse.tocsc())
                 self._static_linear_sparse_solver = LU.solve
             else:
-                A_dense = self._I_dense - delta_t_x_gamma * self._jacobian_dense
+                A_dense = self._I_dense - delta_t_x_gamma * self._jacobianF_dense
                 LU_piv = lu_factor(A_dense)
                 self._static_linear_dense_solver = lambda rhs: lu_solve(LU_piv, rhs)
 

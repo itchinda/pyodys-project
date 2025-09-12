@@ -4,13 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyodys"
-version = "0.0.5"
+version = "0.0.8"
+authors = [
+    { name = "Ismaël Tchinda Ngueyong", email = "pyodyscontact@gmail.com" }
+]
+description = "This is a robust and flexible Python package for solving ordinary differential equations (ODEs). The solver is built to handle both explicit and implicit Runge–Kutta methods using a powerful Butcher tableau approach, and it includes a numerical Jacobian for convenience."
+readme = "README.md"
 dependencies = [
     "numpy",
     "scipy"
 ]
-description = "This is a robust and flexible Python package for solving ordinary differential equations (ODEs). The solver is built to handle both explicit and implicit Runge–Kutta methods using a powerful Butcher tableau approach, and it includes a numerical Jacobian for convenience."
-authors = [
-    { name = "Ismaël Tchinda Ngueyong", email = "pyodyscontact@gmail.com" }
-]
+
 license = { file = "LICENSE" }
+
+[project.urls]
+Homepage = "https://github.com/itchinda/pyodys-project/"
