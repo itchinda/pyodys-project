@@ -31,7 +31,7 @@ class TestButcherTableau:
             [61/150, 2197/2100, 19/100, -9/14]
         ])
         C = np.array([alpha, 10/39, 0, 1/6])
-        schema = ButcherTableau(A, B, C, 4)
+        schema = ButcherTableau(A, B, C, 4, 3)
         assert isinstance(schema, ButcherTableau)
 
 # --- Cas de test 2: Types invalides ---
@@ -74,7 +74,7 @@ def test_incorrect_B_shape():
     B = np.array([[1, 2], [3, 4], [5, 6]])
     C = np.array([1, 2])
     with pytest.raises(ValueError, match="Le vecteur B doit avoir 2 colonnes et 1 ou 2 lignes."):
-        ButcherTableau(A, B, C, 2)
+        ButcherTableau(A, B, C, 2, 1)
 
 def test_check_consistency_pass():
     # A matches C
@@ -141,7 +141,7 @@ def tableau_examples():
     A_emb = np.array([[0.5, 0.0], [0.3, 0.6]])
     B_emb = np.array([[0.4, 0.6], [0.25, 0.75]])
     C_emb = np.sum(A_emb, axis=1)
-    embedded = ButcherTableau(A_emb, B_emb, C_emb, 2)
+    embedded = ButcherTableau(A_emb, B_emb, C_emb, 2, 1)
 
     # --- Negative cases ---
     # Not strictly lower-triangular (fails explicit)

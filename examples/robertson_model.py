@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from pyodys import ODEProblem, ButcherTableau, RKSolverWithButcherTableau
+from pyodys import ODEProblem, ButcherTableau, RKSolver
 
 # Define Robertson System
 class RobertsonModel(ODEProblem):
@@ -42,7 +42,7 @@ def extract_args():
                         type=str, 
                         default='sdirk_norsett_thomson_34',
                         help='The Runge-Kutta method to use.')
-    parser.add_argument('--step-size', '-s', 
+    parser.add_argument('--first-step', '-s', 
                         type=float, 
                         default=1e-4,
                         help='The initial time step size.')
@@ -50,19 +50,19 @@ def extract_args():
                         type=float, 
                         default=1.0,
                         help='The final time for the simulation.')
-    parser.add_argument('--tolerance', '-tol', 
+    parser.add_argument('--adaptive-rtol', '-tol', 
                         type=float,
                         default=1e-6,
                         help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--adaptive-stepping', 
+    parser.add_argument('--adaptive', 
                         action='store_true', 
-                        dest='adaptive_stepping',
+                        dest='adaptive',
                         help='Enable adaptive time stepping.')
-    parser.add_argument('--min-step-size','-n', 
+    parser.add_argument('--min-step','-n', 
                         type=float,
                         default=1e-8,
                         help='The minimum time step size for adaptive stepping.')
-    parser.add_argument('--max-step-size', '-x',
+    parser.add_argument('--max-step', '-x',
                         type=float,
                         default=1e4,
                         help='The maximum time step size for adaptive stepping.')
@@ -91,12 +91,15 @@ if __name__ == '__main__':
     system = RobertsonModel(t0, tf, u0)
 
     # solver
-    solver = RKSolverWithButcherTableau(butcher_tableau = ButcherTableau.from_name(args.method),
-                                           initial_step_size = args.step_size,
-                                           adaptive_time_stepping = args.adaptive_stepping,
-                                           target_relative_error = args.tolerance,
-                                           min_step_size = args.min_step_size,
-                                           max_step_size = args.max_step_size)
+    solver = RKSolver(
+                    method = args.method,
+                    first_step = args.first_step,
+                    adaptive = args.adaptive,
+                    adaptive_rtol = args.adaptive_rtol,
+                    min_step = args.min_step,
+                    max_step = args.max_step
+    )
+
 
     # Solve the system
     start=time.time()

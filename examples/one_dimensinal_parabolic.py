@@ -8,7 +8,7 @@ import time
 
 from pyodys import ODEProblem
 from pyodys import ButcherTableau
-from pyodys import RKSolverWithButcherTableau
+from pyodys import RKSolver
 
 # ---------------- Laplacian ----------------
 def build_1d_laplacian(N: int, h: float, dtype=float) -> csr_matrix:
@@ -67,15 +67,15 @@ parabolic_problem = ParabolicProblem(N=Nx, t_init=t0, t_final=tf,
                                      u0_function=u0_func,
                                      forcing_func=forcing_vector)
 
-solver = RKSolverWithButcherTableau(
-                                    butcher_tableau=ButcherTableau.from_name("esdirk6"),
-                                    initial_step_size=1e-5,
-                                    adaptive_time_stepping=True,
-                                    target_relative_error=1e-8,
-                                    min_step_size=1e-8,
-                                    max_step_size=1e-1,
-                                    auto_check_sparsity =True
-                                )
+solver = RKSolver(
+                method=ButcherTableau.from_name("esdirk6"),
+                first_step=1e-5,
+                adaptive=True,
+                adaptive_rtol=1e-8,
+                min_step=1e-8,
+                max_step=1e-1,
+                auto_check_sparsity =True
+            )
 
 # ---------------- Solve ----------------
 start = time.time()

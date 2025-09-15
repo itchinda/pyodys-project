@@ -1,9 +1,8 @@
-import pyodys as ode
-
+import pyodys
 import numpy as np
 
 
-class systeme(ode.ODEProblem):
+class systeme(pyodys.ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
     
@@ -25,7 +24,7 @@ yi = solution_analytique(xi)
 print(xi)
 print(yi)
 xnew = np.linspace(0, 2, 50)
-ynew = ode.hermite_interpolate(xi, yi, f, xnew)
+ynew = pyodys.hermite_interpolate(xi, yi, f, xnew)
 
 import matplotlib.pyplot as plt
 plt.plot(xnew, solution_analytique(xnew), 'k', label="true")

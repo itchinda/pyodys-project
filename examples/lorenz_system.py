@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyodys import ODEProblem
 from pyodys import ButcherTableau
-from pyodys import RKSolverWithButcherTableau
+from pyodys import RKSolver
 
 # Define Lorenz System
 class LorenzSystem(ODEProblem):
@@ -83,13 +83,15 @@ if __name__ == '__main__':
                            initial_state=u0)
 
     # solver
-    solver = RKSolverWithButcherTableau(butcher_tableau = ButcherTableau.from_name(args.method),
-                                        initial_step_size=args.step_size, 
-                                        adaptive_time_stepping=args.adaptive_stepping,
-                                        target_relative_error=args.tolerance, 
-                                        min_step_size=args.min_step_size, 
-                                        max_step_size=args.max_step_size,
-                                        verbose=args.verbose if args.verbose else False)
+    solver = RKSolver(
+                    method = args.method,
+                    first_step=args.step_size, 
+                    adaptive=args.adaptive_stepping,
+                    adaptive_rtol=args.tolerance, 
+                    min_step=args.min_step_size, 
+                    max_step=args.max_step_size,
+                    verbose=args.verbose if args.verbose else False
+    )
 
     times, solutions = solver.solve( ode_problem = lorenz_system )
 
