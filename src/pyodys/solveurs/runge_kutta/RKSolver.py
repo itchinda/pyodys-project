@@ -103,9 +103,9 @@ class RKSolver(object):
             TypeError: If configuration is inconsistent.
             ValueError: If required arguments are missing.
         """
-        if isinstance(method, str):
+        if isinstance(method, str): #print("\n".join(lines))
             if method not in ButcherTableau.available_schemes():
-                raise ValueError(f'There is not available schemes with name {method}. Here is the list of available schemes: {ButcherTableau.available_schemes()}')
+                raise ValueError(f'There is not available schemes with name {method}. Here is the list of available schemes:\n{"\n".join(ButcherTableau.available_schemes())}')
             self.butcher_tableau=ButcherTableau.from_name(method)
         elif isinstance(method, ButcherTableau):
             self.butcher_tableau = method
