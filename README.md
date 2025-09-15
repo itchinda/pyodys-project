@@ -11,7 +11,7 @@ The solver is built to handle both **explicit and implicit Runge–Kutta methods
   A general-purpose Runge–Kutta solver configurable with any Butcher tableau. Supports a wide range of methods, from classic RK4 to advanced implicit SDIRK schemes.
 
 - **Adaptive Time-Stepping**: 
-  The solver automatically adjusts the time step size based on    local error estimates, ensuring that a solution is found with the specified accuracy while minimizing computational effort. This is crucial for solving problems with dynamics that change over time
+  The solver automatically adjusts the time step size based on local error estimates, ensuring that a solution is found with the specified accuracy while minimizing computational effort. This is crucial for solving problems with dynamics that change over time
 
 - **Implicit Method Support**:  
   Uses the **Newton–Raphson method** to solve the nonlinear systems that arise in implicit ODEs, making it suitable for stiff problems.
@@ -25,7 +25,8 @@ The solver is built to handle both **explicit and implicit Runge–Kutta methods
 - **Example Systems Included**:
   - **Lorenz System**: Demonstrates handling of chaotic dynamics and generates the famous butterfly attractor.  
   - **Simple Linear System**: With a known analytical solution, perfect for accuracy testing.
-  - **Robertson**: A classic stiff problem that showcases the power of implicit solvers..
+  - **Robertson**: A classic stiff problem that showcases the power of implicit solvers.
+  - **1D parabolic problem**: Demonstrates solving a 1D parabolic PDE with PyOdys using a sparse Jacobian for efficient large-scale computation, and visualizes the animated solution against the exact result.
 ---
 
 ## Getting Started
@@ -70,7 +71,7 @@ To solve the Lorenz System with a simple command, you can use one of the provide
 python examples/lorenz_system.py --method dopri5 --final-time 50.0
 ```
 
-You can customize the simulation by changing parameters like the method (`--method`), final time (`--final-time`), step size (`--step-size`), and tolerance (`--tolerance`).
+You can customize the simulation by changing parameters like the method (`--method`), final time (`--final-time`), step size (`--first-step`), and tolerance (`--adaptive-rtol`).
 
 ## Code Example: Coupled Linear System
 
@@ -90,7 +91,7 @@ $$y(t) = e^{-t}$$
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from pyodys import ODEProblem, ButcherTableau, RKSolverWithButcherTableau
+from pyodys import ODEProblem, ButcherTableau, RKSolver
 
 # Define coupled linear system
 class CoupledLinearSystem(ODEProblem):
@@ -117,12 +118,13 @@ if __name__ == '__main__':
     ode_system = CoupledLinearSystem(t_init, t_final, u_init)
 
     # Use a SDIRK solver for demonstration
-    solver_sdirk = RKSolverWithButcherTableau(butcher_tableau = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),
-                                              initial_step_size = 0.01,
-                                              adaptive_time_stepping=True,
-                                              min_step_size=1e-6,
-                                              max_step_size=1.0,
-                                              target_relative_error=1e-6)
+    solver_sdirk = RKSolver(method = 'sdirk_hairer_norsett_wanner_45',
+                            first_step = 0.01,
+                            adaptive=True,
+                            min_step=1e-6,
+                            max_step=1.0,
+                            adaptive_rtol=1e-6)
+
     times, solutions = solver_sdirk.solve( ode_system )
 
     # Compute analytical solution and errors
