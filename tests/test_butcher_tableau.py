@@ -253,13 +253,13 @@ def test_sum_of_A_matches_C(tableau_examples):
     for name, t in tableau_examples.items():
         np.testing.assert_allclose(np.sum(t.A, axis=1), t.C, rtol=1e-14, atol=1e-14)
 
-def test_rk_type_summary(tableau_examples):
-    assert "ESDIRK" in tableau_examples["esdirk"].rk_type_summary()
-    assert "SDIRK" in tableau_examples["sdirk"].rk_type_summary()
-    assert "DIRK" in tableau_examples["dirk"].rk_type_summary()
-    assert "Explicit RK" in tableau_examples["explicit"].rk_type_summary()
-    assert "Implicit RK" in tableau_examples["implicit"].rk_type_summary()
-    assert "Embedded: Yes" in tableau_examples["embedded"].rk_type_summary()
+def test_info(tableau_examples):
+    assert "ESDIRK" in tableau_examples["esdirk"].info()
+    assert "SDIRK" in tableau_examples["sdirk"].info()
+    assert "DIRK" in tableau_examples["dirk"].info()
+    assert "Explicit RK" in tableau_examples["explicit"].info()
+    assert "Implicit RK" in tableau_examples["implicit"].info()
+    assert "Embedded: Yes" in tableau_examples["embedded"].info()
 
 # --- Negative / failure cases ---
 def test_non_explicit_is_not_explicit(tableau_examples):

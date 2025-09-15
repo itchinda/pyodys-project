@@ -111,7 +111,15 @@ class ButcherTableau:
     4
     """
 
-    def __init__(self, A: np.ndarray, B: np.ndarray, C: np.ndarray, order: Union[int, float], embedded_order: Union[int, float] = None, check_consistency: bool = False):
+    def __init__(self, A: np.ndarray, 
+                 B: np.ndarray, 
+                 C: np.ndarray, 
+                 order: Union[int, float], 
+                 embedded_order: Union[int, float] = None, 
+                 check_consistency: bool = False,
+                 a_stable: bool = None,
+                 l_stable: bool = None
+                 ):
         """
         Initialize a Runge-Kutta Butcher tableau.
 
@@ -199,6 +207,8 @@ class ButcherTableau:
         self.C: np.ndarray = C
         self.order: Union[int, float] = order
         self.embedded_order: Union[int, float] = embedded_order
+        self.a_stable = a_stable
+        self.l_stable = l_stable
 
     # ------------------ Properties ------------------
     @property
@@ -301,7 +311,7 @@ class ButcherTableau:
 
         return output
     
-    def rk_type_summary(self) -> str:
+    def info(self) -> str:
         """
         Return a concise textual summary of the Runge-Kutta type.
         
@@ -324,16 +334,36 @@ class ButcherTableau:
             rk_type = "Explicit RK"
         else:
             rk_type = "Unknown"
-    
-        embedded = "Yes" if self.with_prediction else "No"
-    
-        return (
+
+        if self.a_stable is not None:
+            a_stable = "Yes" if self.a_stable else "No"
+        if self.l_stable is not None:
+            l_stable = "Yes" if self.l_stable else "No"
+        # solver_info = (
+        #             f"Type: {rk_type}\n"
+        #             f"Stages: {self.n_stages}\n"
+        #             f"Order: {self.order}\n"
+        #             f"Embedded: {"Yes" if self.with_prediction else "No"}"
+        #             f"{f"\nEmbedded order: {self.embedded_order}" if self.with_prediction else ""}"
+        #             f"{f"\nA-stable: {a_stable}" if self.a_stable is not None else ""}"
+        #             f"{f"\nL-stable: {a_stable}" if self.l_stable is not None else ""}" 
+        #         )  # Does not work for python 3.11 and older versions
+
+        solver_info = (
             f"Type: {rk_type}\n"
             f"Stages: {self.n_stages}\n"
             f"Order: {self.order}\n"
-            f"Embedded: {embedded}"
-            f"Embedded order: {self.embedded_order}" if embedded else ""
+            f"Embedded: {'Yes' if self.with_prediction else 'No'}"
         )
+        if self.with_prediction:
+            solver_info += f"\nEmbedded order: {self.embedded_order}"
+
+        if self.a_stable is not None:
+            solver_info += f"\nA-stable: {self.a_stable}"
+
+        if self.l_stable is not None:
+            solver_info += f"\nL-stable: {self.l_stable}"
+        return solver_info
 
     @classmethod
     def from_name(cls, name: str) -> "ButcherTableau":
@@ -347,7 +377,7 @@ class ButcherTableau:
         >>> print(ButcherTableau.available_schemes())
         ['erk1', 'erk2_midpoint', 'erk4', 'sdirk1', 'sdirk2_midpoint', 'sdirk43_crouzeix', 'cooper_verner', 'euler_heun', 'bogacki_shampine', 'fehlberg45', 'dopri5', 'sdirk21_crouzeix_raviart', 'sdirk_norsett_thomson_23', 'sdirk_norsett_thomson_34', 'sdirk_hairer_norsett_wanner_45', 'esdirk6']
         >>> tableau = ButcherTableau.from_name('erk4')
-        >>> tableau.rk_type_summary()
+        >>> tableau.info()
         Type: Explicit RK
         Stages: 4
         Order: 4
@@ -356,20 +386,31 @@ class ButcherTableau:
         data = _load_schemes()
         name_lower = name.lower()
         if name_lower not in data:
+            available_schemas = "\n".join(data.keys())
             raise ValueError(
-                f"Nom de schema inconnu: '{name}'. "
-                f"Schemas disponibles: {', '.join(data.keys())}"
+                f"Nom de schema inconnu: '{name}'. Schemas disponibles:\n{available_schemas}"
             )
         scheme_data = data[name_lower]
         try:
             embedded_order = scheme_data['embedded_order']
         except KeyError:
             embedded_order = None
-        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"], embedded_order)
+
+        try:
+            a_stable = scheme_data['a_stable']
+        except KeyError:
+            a_stable = None
+
+        try:
+            l_stable = scheme_data['l_stable']
+        except KeyError:
+            l_stable = None
+
+        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"], True, embedded_order, a_stable, l_stable)
 
     @classmethod
     def par_nom(cls, nom: str) -> "ButcherTableau":
-        """Alias in English for `par_nom`."""
+        """Alias in French for `from_name`."""
         return cls.from_name(nom)
 
     @classmethod

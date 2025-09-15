@@ -41,7 +41,7 @@ if __name__ == '__main__':
                         type=str, 
                         default='dopri5',
                         help='The Runge-Kutta method to use.')
-    parser.add_argument('--step-size', '-s', 
+    parser.add_argument('--first-step', '-s', 
                         type=float, 
                         default=1e-2,
                         help='The initial time step size.')
@@ -49,19 +49,19 @@ if __name__ == '__main__':
                         type=float, 
                         default=100.0,
                         help='The final time for the simulation.')
-    parser.add_argument('--tolerance', '-tol', 
+    parser.add_argument('--adaptive-rtol', '-tol', 
                         type=float,
-                        default=1e-10,
+                        default=1e-8,
                         help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--adaptive-stepping', 
-                        action='store_true', 
-                        dest='adaptive_stepping',
+    parser.add_argument('--no-adaptive', 
+                        action='store_false', 
+                        dest='adaptive',
                         help='Disable adaptive time stepping.')
-    parser.add_argument('--min-step-size','-n', 
+    parser.add_argument('--min-step','-n', 
                         type=float,
                         default=1e-12,
                         help='The minimum time step size for adaptive stepping.')
-    parser.add_argument('--max-step-size', '-x',
+    parser.add_argument('--max-step', '-x',
                         type=float,
                         default=1.0,
                         help='The maximum time step size for adaptive stepping.')
@@ -85,11 +85,11 @@ if __name__ == '__main__':
     # solver
     solver = RKSolver(
                     method = args.method,
-                    first_step=args.step_size, 
-                    adaptive=args.adaptive_stepping,
-                    adaptive_rtol=args.tolerance, 
-                    min_step=args.min_step_size, 
-                    max_step=args.max_step_size,
+                    first_step=args.first_step, 
+                    adaptive=args.adaptive,
+                    adaptive_rtol=args.adaptive_rtol,
+                    min_step=args.min_step, 
+                    max_step=args.max_step,
                     verbose=args.verbose if args.verbose else False
     )
 

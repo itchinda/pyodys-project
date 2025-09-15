@@ -104,9 +104,13 @@ class RKSolver(object):
             ValueError: If required arguments are missing.
         """
         if isinstance(method, str):
+            available = "\n".join(ButcherTableau.available_schemes())
             if method not in ButcherTableau.available_schemes():
-                raise ValueError(f'There is not available schemes with name {method}. Here is the list of available schemes: {ButcherTableau.available_schemes()}')
-            self.butcher_tableau=ButcherTableau.from_name(method)
+                raise ValueError(
+                    f"There is no available scheme with name {method}. "
+                    f"Here is the list of available schemes:\n{available}"
+                )
+            self.butcher_tableau = ButcherTableau.from_name(method)
         elif isinstance(method, ButcherTableau):
             self.butcher_tableau = method
         else:
