@@ -386,9 +386,9 @@ class ButcherTableau:
         data = _load_schemes()
         name_lower = name.lower()
         if name_lower not in data:
+            available_schemas = "\n".join(data.keys())
             raise ValueError(
-                f"Nom de schema inconnu: '{name}'. "
-                f"Schemas disponibles:\n {'\n'.join(data.keys())}"
+                f"Nom de schema inconnu: '{name}'. Schemas disponibles:\n{available_schemas}"
             )
         scheme_data = data[name_lower]
         try:
