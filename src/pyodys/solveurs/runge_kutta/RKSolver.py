@@ -1,12 +1,15 @@
 from ...systemes.ODEProblem import ODEProblem
 from .ButcherTableau import ButcherTableau
 import numpy as np
+from typing import Union
 from scipy.linalg import lu_factor, lu_solve, LinAlgError
 from scipy.sparse.linalg import splu
 from scipy.sparse import csr_matrix, identity, isspmatrix
 import csv
 import os
+import warnings
 
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 class PyOdysError(RuntimeError):
     """Exception raised when PyOdys fails to solve a problem."""
@@ -28,7 +31,7 @@ def wrms_norm(delta, u, atol=1e-12, rtol=1e-6):
     return np.sqrt(np.mean((delta / scale) ** 2))
 
 
-class RKSolverWithButcherTableau(object):
+class RKSolver(object):
     """
     A Runge-Kutta solver for ordinary differential equations (ODEs) that
     can handle both explicit and implicit schemes. It supports adaptive
@@ -57,33 +60,34 @@ class RKSolverWithButcherTableau(object):
     - Verbosity and progress reporting
 
     """
-    def __init__(self, butcher_tableau=ButcherTableau.from_name("erk4"),
-                 initial_step_size: float = None,
-                 adaptive_time_stepping: bool = False,
-                 min_step_size: float = None, 
-                 max_step_size: float = None,
-                 max_number_of_adaptive_steps = 1000000,
-                 target_relative_error: float = None,
-                 max_jacobian_refresh=1,
-                 newton_atol = 1e-10,
-                 newton_rtol = 1e-8,
-                 newton_nmax = 10,
+    def __init__(self,
+                 method: Union[ButcherTableau, str] = None,
+                 first_step: float = None,
+                 adaptive: bool = False,
+                 min_step: float = None, 
+                 max_step: float = None,
+                 nsteps_max: int = 1000000,
+                 adaptive_rtol: float = None,
+                 max_jacobian_refresh: int = 1,
+                 newton_atol: float = 1e-10,
+                 newton_rtol: float = 1e-8,
+                 newton_nmax: int = 10,
                  verbose: bool = True,
                  progress_interval_in_time: int = None,
                  export_interval: int = None,
-                 export_prefix=None,
-                 auto_check_sparsity =True,
+                 export_prefix: str = None,
+                 auto_check_sparsity: bool = True,
                  sparse_threshold: int = 20,
-                 sparsity_ration_limit = 0.2):
+                 sparsity_ration_limit: float = 0.2):
         """Initialize a Runge-Kutta solver with a Butcher tableau.
 
         Args:
-            butcher_tableau (ButcherTableau): The Butcher tableau that defines the specific RK method to use. For adaptive methods, the tableau must provide an embedded solution.
-            initial_step_size (float): The initial time step (Deltat). This is the fixed step size for non-adaptive mode.
-            adaptive_time_stepping (bool, optional): If True, the solver will adjust the step size to meet the specified target_relative_error. Defaults to False.
-            min_step_size (float, optional): The minimum allowed step size when using adaptive time-stepping. Required if adaptive_time_stepping is True.
-            max_step_size (float, optional): The maximum allowed step size when using adaptive time-stepping. Required if adaptive_time_stepping is True.
-            target_relative_error (float, optional): The target relative error for adaptive step-size control. Required if adaptive_time_stepping is True.
+            method (ButcherTableau | str): The name of the scheme (e.g. erk1, erk2, erk4, sdirk1, sdirk2, sdirk4, esdirk6, dopri5, etc.), or the Butcher tableau that defines the specific RK method to use. For adaptive methods, the tableau must provide an embedded solution.
+            first_step (float): The initial time step (Deltat). This is the fixed step size for non-adaptive mode.
+            adaptive (bool, optional): If True, the solver will adjust the step size to meet the specified adaptive_rtol. Defaults to False.
+            min_step (float, optional): The minimum allowed step size when using adaptive time-stepping. Required if adaptive is True.
+            max_step (float, optional): The maximum allowed step size when using adaptive time-stepping. Required if adaptive is True.
+            adaptive_rtol (float, optional): The target relative error for adaptive step-size control. Required if adaptive is True.
             max_jacobian_refresh (int, optional): The maximum number of times to recompute and re-factorize the Jacobian within a single time step's implicit stages before giving up.
             newton_atol (float, optional): The absolute tolerance for Newton's method convergence.
             newton_rtol (float, optional): The relative tolerance for Newton's method convergence.
@@ -99,24 +103,30 @@ class RKSolverWithButcherTableau(object):
             TypeError: If configuration is inconsistent.
             ValueError: If required arguments are missing.
         """
-        if not isinstance(butcher_tableau, ButcherTableau):
-            raise TypeError("butcher_tableau must be an object of class ButcherTableau.")
-        if initial_step_size==None:
+        if isinstance(method, str):
+            if method not in ButcherTableau.available_schemes():
+                raise ValueError(f'There is not available schemes with name {method}. Here is the list of available schemes: {ButcherTableau.available_schemes()}')
+            self.butcher_tableau=ButcherTableau.from_name(method)
+        elif isinstance(method, ButcherTableau):
+            self.butcher_tableau = method
+        else:
+            raise TypeError("method must be an object of class ButcherTableau,or the method name(str). Please provide either ButchherTableau, or the name of the method.")
+                    
+        if first_step==None:
             raise ValueError("You must specify the time step or the initial time step (if you choose adaptive time stepping).")
-        if adaptive_time_stepping and (min_step_size==None or max_step_size==None):
+        if adaptive and (min_step==None or max_step==None):
             raise TypeError("Since you choose adaptive time stepping, you must specify the minimal and maximal time steps.")
-        if adaptive_time_stepping and target_relative_error == None:
+        if adaptive and adaptive_rtol == None:
             raise TypeError("Since you choose adaptive time stepping, you must specify the the target relative error.")
-        if butcher_tableau.is_implicit and not butcher_tableau.is_diagonally_implicit:
+        if self.butcher_tableau.is_implicit and not self.butcher_tableau.is_diagonally_implicit:
             raise PyOdysError("General Implicit Runge-Kutta schemes are not currently supported. Consider using a Diagonally Implicit scheme instead.")
         
-        self.butcher_tableau = butcher_tableau
-        self.initial_step_size = initial_step_size
-        self.adaptive_time_stepping = adaptive_time_stepping
-        self.min_step_size = min_step_size
-        self.max_step_size = max_step_size
-        self.max_number_of_adaptive_steps = max_number_of_adaptive_steps
-        self.target_relative_error = target_relative_error
+        self.first_step = first_step
+        self.adaptive = adaptive
+        self.min_step = min_step
+        self.max_step = max_step
+        self.nsteps_max = nsteps_max
+        self.adaptive_rtol = adaptive_rtol
         self.max_jacobian_refresh = max_jacobian_refresh
         self.verbose = verbose
         self.progress_interval_in_time = progress_interval_in_time
@@ -130,7 +140,7 @@ class RKSolverWithButcherTableau(object):
         self.sparsity_ration_limit = sparsity_ration_limit
         self.newton_failed = False
 
-        self.export_counter = 0
+        self._export_counter = 0
         self._with_prediction = self.butcher_tableau.with_prediction
         self._sparsity_checked = False
         self._jacobian_is_sparse = None
@@ -144,11 +154,11 @@ class RKSolverWithButcherTableau(object):
         self._mass_matrix = None
         self._use_built_in_python_list = False
 
-        self._is_dirk = butcher_tableau.is_diagonally_implicit
-        self._is_erk = butcher_tableau.is_explicit
-        self._is_irk = butcher_tableau.is_implicit
-        self._is_sdirk = butcher_tableau.is_sdirk
-        self._is_esdirk = butcher_tableau.is_esdirk
+        self._is_dirk = self.butcher_tableau.is_diagonally_implicit
+        self._is_erk = self.butcher_tableau.is_explicit
+        self._is_irk = self.butcher_tableau.is_implicit
+        self._is_sdirk = self.butcher_tableau.is_sdirk
+        self._is_esdirk = self.butcher_tableau.is_esdirk
 
         self._jacobian_constant_and_sdirk_and_fixed_step_size = False
         self._static_linear_sparse_solver = None
@@ -184,8 +194,8 @@ class RKSolverWithButcherTableau(object):
         """
         if self.export_prefix is None:
             return
-        self.export_counter += 1
-        filename = f"{self.export_prefix}_{self.export_counter:05d}.csv"
+        self._export_counter += 1
+        filename = f"{self.export_prefix}_{self._export_counter:05d}.csv"
         dirpath = os.path.dirname(filename)
         if dirpath:  # only create if there is a directory component
             os.makedirs(dirpath, exist_ok=True)
@@ -206,7 +216,7 @@ class RKSolverWithButcherTableau(object):
         If the Jacobian is constant, store it once for reuse.
 
         Args:
-            self: The instance of the RKSolverWithButcherTableau class.
+            self: The instance of the RKSolver class.
             F (ODEProblem): The ODEProblem object. This object is expected to have a method jacobian_at(t, u) that returns the Jacobian matrix of the ODE system.
             tn (float): The current time, used to evaluate the Jacobian at a specific point in the simulation.
             U_np (numpy.ndarray): The current state vector, used to evaluate the Jacobian at a specific state.
@@ -360,7 +370,7 @@ class RKSolverWithButcherTableau(object):
               the Newton iterations are retried.
         
         Args:
-            self: The instance of the RKSolverWithButcherTableau class.
+            self: The instance of the RKSolver class.
             F: The ODEProblem object representing the ODE system.
             tn (float): The current time point, tn.
             delta_t (float): The time step size, Δt.
@@ -536,6 +546,8 @@ class RKSolverWithButcherTableau(object):
         Raises:
             PyOdysError: If the solver encounters a fatal error, such as repeated Newton failures.
         """
+        if not ode_problem.mass_matrix_is_identity:
+            raise ValueError("Ptoblem with non identity mass matrix not currently supported.")
     
         if self._jacobian_is_sparse is None:
             self._detect_sparsity(ode_problem, ode_problem.t_init, ode_problem.initial_state)
@@ -551,18 +563,12 @@ class RKSolverWithButcherTableau(object):
             elif not self._jacobian_is_sparse and self._jacobianF_dense is None:
                 self._jacobianF_dense = ode_problem.jacobian_at(ode_problem.t_init, ode_problem.initial_state)
 
-        if (not self._with_prediction) and self.adaptive_time_stepping:
-            self._print_verbose(
-                "Warning: The selected solver does not support adaptive time stepping. Using fixed time steps instead. ⚠️"
-            )
-            self.adaptive_time_stepping = False
-
-        if not self.adaptive_time_stepping:
-            return self._solve_with_fixed_step_size(ode_problem, self.initial_step_size)
+        if not self.adaptive:
+            return self._solve_with_fixed_step_size(ode_problem, self.first_step)
 
         U_courant = np.copy(ode_problem.initial_state)
         current_time = ode_problem.t_init
-        max_number_of_adaptive_steps = self.max_number_of_adaptive_steps
+        nsteps_max = self.nsteps_max
         if self.progress_interval_in_time == None:
             self.progress_interval_in_time = (ode_problem.t_final - ode_problem.t_init) / 100.0
 
@@ -573,8 +579,8 @@ class RKSolverWithButcherTableau(object):
                 times = np.empty(self.export_interval+1, dtype=float)
                 solutions = np.empty((self.export_interval+1, len(ode_problem.initial_state)), dtype=float)
             else :
-                times = np.empty(max_number_of_adaptive_steps+1, dtype=float)
-                solutions = np.empty((max_number_of_adaptive_steps+1, len(ode_problem.initial_state)), dtype=float)
+                times = np.empty(nsteps_max+1, dtype=float)
+                solutions = np.empty((nsteps_max+1, len(ode_problem.initial_state)), dtype=float)
             times[0] = ode_problem.t_init
             solutions[0,:] = np.copy(U_courant)
             self._print_verbose("Successfully pre-allocated memory for the solution array.")
@@ -590,15 +596,15 @@ class RKSolverWithButcherTableau(object):
             solutions = [ode_problem.initial_state]
 
         t_final = ode_problem.t_final
-        step_size = self.initial_step_size
-        order = self.butcher_tableau.order
+        step_size = self.first_step
+        embedded_order = self.butcher_tableau.embedded_order if self._with_prediction else self.butcher_tableau.order
 
         number_of_time_steps = 0
         newton_failure_count = 0
         max_newton_failures = 10
 
         k = 0
-        while current_time < t_final and number_of_time_steps < max_number_of_adaptive_steps:
+        while current_time < t_final and number_of_time_steps < nsteps_max:
             # tronquer pour ne pas dépasser t_final
             step_size = min(step_size, t_final - current_time)
 
@@ -613,7 +619,7 @@ class RKSolverWithButcherTableau(object):
                     f"Newton failed at t = {current_time:.4f}. "
                     f"Reducing step size and retrying. Failure count: {newton_failure_count}"
                 )
-                step_size = max(step_size / 2.0, self.min_step_size)
+                step_size = max(step_size / 2.0, self.min_step)
                 if newton_failure_count >= max_newton_failures:
                     message = (
                         f"Maximum consecutive Newton failures ({max_newton_failures}) reached. "
@@ -624,12 +630,26 @@ class RKSolverWithButcherTableau(object):
                     raise PyOdysError(message)
                 continue  # retry immediately at same time
 
-            # succès Newton
+            # succès Newton !
+            # computing a predicted  solution if the selected solver does not provide an embedded solution
+            if not self._with_prediction:
+                try:
+                    U_pred = self._perform_richardson_step(
+                        ode_problem, current_time, step_size, U_courant
+                    )
+                except ValueError as e:
+                    # Handle the specific error from Richardson extrapolation
+                    self._print_verbose(f"Richardson extrapolation failed: {e}. Retrying with smaller step.")
+                    step_size = max(step_size / 2.0, self.min_step)
+                    newton_failure_count += 1
+                    continue
+
+
             newton_failure_count = 0
 
             new_step_size, step_accepted = self._check_step_size(
-                U_n_plus_1, U_pred, step_size, self.target_relative_error, order,
-                self.min_step_size, self.max_step_size, current_time, t_final
+                U_n_plus_1, U_pred, step_size, self.adaptive_rtol, embedded_order,
+                self.min_step, self.max_step, current_time, t_final
             )
 
             if step_accepted:
@@ -669,23 +689,50 @@ class RKSolverWithButcherTableau(object):
                 self._export(times[:k+1], solutions[:k+1, :])
             print(f"Simulation completed. The results have been saved to {self.export_prefix}*.csv")
             return None
-        self._print_verbose(
-            f"The total number of time steps required to reach t_final = {t_final} is {number_of_time_steps}."
-        )
+        if current_time < t_final - 1e-12:
+            warnings.warn(f"\nWarnings: I stopped the simulation at t = {current_time}, due to the limited number of adaptive steps allowed.\n"
+                          f"Number of steps completed: {self.nsteps_max}.\n"
+                          f"Time after {self.nsteps_max} steps:  {current_time}\n"
+                          f"Expected Final Time: {t_final}.")
+        else:
+            self._print_verbose(
+                f"The total number of time steps required to reach t_final = {t_final} is {number_of_time_steps}."
+            )
         return np.array(times[:number_of_time_steps+1], dtype=float), np.array(solutions[:number_of_time_steps+1], dtype=float)
 
-    def _check_step_size(self, U_approx : np.ndarray, U_pred : np.ndarray, step_size : float, target_relative_error : float,
-                          order : int, min_step_size : float, max_step_size : float, current_time : float, t_final : float):
+    def _perform_richardson_step(self, F: ODEProblem, tn: float, delta_t: float, U_np: np.ndarray):
+        """Performs Richardson extrapolation for schemes without embedded estimators."""
+
+        # First half-step
+        U_half_step, _, newton_not_happy = \
+            self._perform_single_rk_step(
+                F, tn, delta_t / 2.0, U_np
+            )
+        if newton_not_happy:
+            raise ValueError("Newton failed during the first Richardson half-step.")
+
+        # Second half-step
+        U_pred, _, newton_not_happy = \
+            self._perform_single_rk_step(
+                F, tn + delta_t / 2.0, delta_t / 2.0, U_half_step
+            )
+        if newton_not_happy:
+            raise ValueError("Newton failed during the second Richardson half-step.")
+
+        return U_pred
+
+    def _check_step_size(self, U_approx : np.ndarray, U_pred : np.ndarray, step_size : float, adaptive_rtol : float,
+                          embedded_order : int, min_step : float, max_step : float, current_time : float, t_final : float):
         """Validate and adapt the time step size based on error estimates.
 
         Args:
             U_approx (np.ndarray): Computed solution.
             U_pred (np.ndarray): Predictor solution.
             step_size (float): Current time step.
-            target_relative_error (float): Target relative error.
-            order (int): Order of the RK method.
-            min_step_size (float): Minimum allowed time step.
-            max_step_size (float): Maximum allowed time step.
+            adaptive_rtol (float): Target relative error.
+            embedded_order (int): Order of the embedded RK method.
+            min_step (float): Minimum allowed time step.
+            max_step (float): Maximum allowed time step.
             current_time (float): Current simulation time.
             t_final (float): Final simulation time.
 
@@ -697,33 +744,24 @@ class RKSolverWithButcherTableau(object):
         alpha = 0.1
         beta = 0.9
         eps = 1e-12
-        # WRMS-like erreur
-        # scale = 1e-12 + 1e-6 * np.maximum(np.max(np.abs(U_approx)), np.max(np.abs(U_pred)))
-        # err = np.sqrt(np.mean(((U_approx - U_pred) / scale) ** 2))
-        # step_accepted = err <= (1.0 + alpha)
+        err = np.linalg.norm((U_approx - U_pred) / (np.abs(U_pred)+1e-12), ord=2) 
+        step_accepted = err < (1 + alpha) * adaptive_rtol
 
-        # err = wrms_norm(U_approx - U_pred, U_pred, rtol=target_relative_error)
-        # step_accepted = err < 1.0
-
-        #err = np.linalg.norm(U_approx - U_pred, 2) / (np.linalg.norm( U_pred, 2) + eps)
-        err = np.linalg.norm((U_approx - U_pred) / (np.abs(U_pred)+1e-12), ord=2) #/ (np.linalg.norm( U_pred, 2) + eps)
-        step_accepted = err < (1 + alpha) * target_relative_error
-
-        if step_accepted and err > (1-alpha)*target_relative_error:
+        if step_accepted and err > (1-alpha)*adaptive_rtol:
             new_step_size = step_size
         else:
-            new_step_size = beta * step_size * (target_relative_error / max(err, eps)) ** (1.0 / (order))
+            new_step_size = beta * step_size * (adaptive_rtol / max(err, eps)) ** (1.0 / (embedded_order + 1))
 
-        if new_step_size < min_step_size:
+        if new_step_size < min_step:
             self._print_verbose(
-                f"Warning! Computed step size {new_step_size:.4e} < min step size {min_step_size:.4e}. Using min step size."
+                f"Warning! Computed step size {new_step_size:.4e} < min step size {min_step:.4e}. Using min step size."
             )
-            new_step_size = min_step_size
-        elif new_step_size > max_step_size:
+            new_step_size = min_step
+        elif new_step_size > max_step:
             self._print_verbose(
-                f"Warning! Computed step size {new_step_size:.4e} > max step size {max_step_size:.4e}. Using max step size."
+                f"Warning! Computed step size {new_step_size:.4e} > max step size {max_step:.4e}. Using max step size."
             )
-            new_step_size = max_step_size
+            new_step_size = max_step
 
         if step_accepted:
             new_time = current_time + step_size
@@ -752,7 +790,7 @@ class RKSolverWithButcherTableau(object):
 
 
         if self.progress_interval_in_time == None:
-            self.progress_interval_in_time = np.max([(float(max_number_of_time_steps) / 100.0)*self.initial_step_size, 1.0])
+            self.progress_interval_in_time = np.max([(float(max_number_of_time_steps) / 100.0)*self.first_step, 1.0])
 
         next_progress_in_time = ode_problem.t_init + self.progress_interval_in_time
         if self.export_interval:

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 # Using the top-level imports from the installed package
 from pyodys import ODEProblem
 from pyodys import ButcherTableau
-from pyodys import RKSolverWithButcherTableau
+from pyodys import RKSolver
 
 # Define coupled linear system
 class SystemeCouple(ODEProblem):
@@ -31,13 +31,13 @@ if __name__ == '__main__':
     systeme = SystemeCouple(t_init, t_final, u_init)
 
     # Using a SDIRK solver
-    solver_sdirk = RKSolverWithButcherTableau(
-        butcher_tableau = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),                             
-        initial_step_size = 0.01,
-        adaptive_time_stepping = True,
-        target_relative_error = 1e-6,
-        min_step_size = 1e-6,
-        max_step_size = 1.0
+    solver_sdirk = RKSolver(
+        method = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),                             
+        first_step = 0.1,
+        adaptive = True,
+        adaptive_rtol = 1e-10,
+        min_step = 1e-6,
+        max_step = 1.0
     )
     
     times, solutions = solver_sdirk.solve( systeme )

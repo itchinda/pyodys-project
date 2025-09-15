@@ -4,7 +4,7 @@ import time
 
 from pyodys import ODEProblem
 from pyodys import ButcherTableau
-from pyodys import RKSolverWithButcherTableau
+from pyodys import RKSolver
 
 # Problem definition
 PP = 0.12  # choisir entre 0 et 1. Exemples a la page 60 du document de Lamirande
@@ -130,20 +130,22 @@ if __name__ == '__main__':
                               initial_state=Y)
 
     # solver
-    solver = RKSolverWithButcherTableau(butcher_tableau=ButcherTableau.from_name('esdirk6'),                                    
-                                        initial_step_size=1e-10,
-                                        adaptive_time_stepping=True,
-                                        min_step_size=1e-10,
-                                        max_step_size=100,
-                                        target_relative_error=1e-8,
-                                        max_jacobian_refresh=1,
-                                        verbose=True, 
-                                        progress_interval_in_time=1.0)
+    solver = RKSolver(
+                    method='euler_heun',                                    
+                    first_step=1e-1,
+                    adaptive=True,
+                    min_step=1e-10,
+                    max_step=100,
+                    adaptive_rtol=1e-10,
+                    max_jacobian_refresh=1,
+                    verbose=True, 
+                    progress_interval_in_time=1.0
+    )
 
     start=time.time()
     times, solutions = solver.solve( ode_problem=systeme )
     Elapsed = time.time() - start
-    # print(Elapsed)
+    print(f"Elapsed time: {Elapsed}")
     # print("Saving data to CSV...")
     # results = np.column_stack((times, solutions))
     # header = "time,U,V,W,Mj,MA,Nj,NA,Cj,CA,P,Q"

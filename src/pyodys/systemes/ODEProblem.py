@@ -20,8 +20,8 @@ class ODEProblem(ABC):
                  initial_state: ArrayLike, 
                  delta: float = 1e-5, 
                  jacobian_is_constant: bool = False,
+                 mass_matrix_is_identity: bool = True,
                  mass_matrix_is_constant: bool = True,
-                 mass_matrix_is_identity: bool = False,
                  mass_matrix_jacobian_is_null: bool = True):
         """Initialize an ODE system.
 

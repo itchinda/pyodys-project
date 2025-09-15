@@ -70,6 +70,8 @@ class ButcherTableau:
         Node vector.
     order : int
         The order of accuracy of the scheme.
+    embedded_order : int, optional
+            The order of accuracy of the embedded scheme. Must be provided if the method has an embedded secheme for error estimate.
     n_stages : int
         Number of stages (size of A).
     with_prediction : bool
@@ -109,7 +111,7 @@ class ButcherTableau:
     4
     """
 
-    def __init__(self, A: np.ndarray, B: np.ndarray, C: np.ndarray, order: Union[int, float], check_consistency: bool = False):
+    def __init__(self, A: np.ndarray, B: np.ndarray, C: np.ndarray, order: Union[int, float], embedded_order: Union[int, float] = None, check_consistency: bool = False):
         """
         Initialize a Runge-Kutta Butcher tableau.
 
@@ -125,9 +127,11 @@ class ButcherTableau:
             Node vector, usually sum of rows of A.
         order : int or float
             The order of accuracy of the scheme.
+        embedded_order : int or float, optional
+            The order of accuracy of the embedded scheme. Must be provided if the method has an embedded secheme for error estimate.
         check_consistency : bool, optional (default=False)
-            If True, raise a ValueError if the sum of each row of A does not equal the corresponding entry of C.
-            If False, no check is performed (user-defined tableaus with custom C allowed).
+            If True, raise a ValueError if the sum of each row of A does not equal the corresponding entry of C, or if the sum of each row of B does not equal 1.0.
+            If False, no check is performed (user-defined tableaus with custom C and B allowed).
 
         Raises
         ------
@@ -154,6 +158,10 @@ class ButcherTableau:
             raise TypeError("C doit être un vecteur numpy de dimension 1 ou 2.")
         if not isinstance(order, (int, float)):
             raise TypeError("Le paramètre 'order' doit être de type entier ou réel.")
+        if embedded_order is not None and not isinstance(embedded_order, (int, float)):
+            raise TypeError("Le paramètre 'embedded_order' doit être de type entier ou réel.")
+        if B.ndim == 2 and embedded_order is None:
+            raise ValueError("For embedded schemes, you must provide the volue of the parameter 'embedded_order' for the embedded scheme order.")
         if not all(np.issubdtype(arr.dtype, np.number) for arr in [A, B, C]):
             raise TypeError("Les tableaux A, B, et C doivent contenir des nombres (entiers ou réels).")
         if check_consistency:
@@ -190,6 +198,7 @@ class ButcherTableau:
         self.B: np.ndarray = B
         self.C: np.ndarray = C
         self.order: Union[int, float] = order
+        self.embedded_order: Union[int, float] = embedded_order
 
     # ------------------ Properties ------------------
     @property
@@ -263,6 +272,7 @@ class ButcherTableau:
     def __str__(self) -> str:
         s = self.A.shape[0]
         output = f"Runge-Kutta method of order {self.order}\n\n"
+        output += f"Embedded scheme order: {self.embedded_order}" if self.embedded_order is not None else ""
 
         # Determine max width for alignment
         max_width = max(
@@ -300,6 +310,7 @@ class ButcherTableau:
             Stages: 6
             Order: 4
             Embedded: Yes
+            Embedded order: 3
         """
         if self.is_esdirk:
             rk_type = "ESDIRK"
@@ -321,6 +332,7 @@ class ButcherTableau:
             f"Stages: {self.n_stages}\n"
             f"Order: {self.order}\n"
             f"Embedded: {embedded}"
+            f"Embedded order: {self.embedded_order}" if embedded else ""
         )
 
     @classmethod
@@ -349,7 +361,11 @@ class ButcherTableau:
                 f"Schemas disponibles: {', '.join(data.keys())}"
             )
         scheme_data = data[name_lower]
-        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"])
+        try:
+            embedded_order = scheme_data['embedded_order']
+        except KeyError:
+            embedded_order = None
+        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"], embedded_order)
 
     @classmethod
     def par_nom(cls, nom: str) -> "ButcherTableau":

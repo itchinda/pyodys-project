@@ -131,7 +131,7 @@
             0.5,
             -0.06857902129999993
         ],
-        "order": 2
+        "order": 4
     },
     "cooper_verner": {
         "A": [
@@ -332,7 +332,8 @@
             0.0,
             1.0
         ],
-        "order": 2
+        "order": 2,
+        "embedded_order": 1
     },
     "bogacki_shampine": {
         "A": [
@@ -381,7 +382,8 @@
             0.75,
             1.0
         ],
-        "order": 3
+        "order": 4,
+        "embedded_order": 3
     },
     "fehlberg45": {
         "A": [
@@ -460,7 +462,8 @@
             1.0,
             0.5
         ],
-        "order": 5
+        "order": 5,
+        "embedded_order": 4
     },
     "dopri5": {
         "A": [
@@ -557,7 +560,8 @@
             1.0,
             1.0
         ],
-        "order": 5
+        "order": 5,
+        "embedded_order": 4
     },
     "sdirk21_crouzeix_raviart": {
         "A": [
@@ -584,7 +588,8 @@
             0.29289321881345254,
             1.0
         ],
-        "order": 2
+        "order": 2,
+        "embedded_order": 1
     },
     "sdirk_norsett_thomson_23": {
         "A": [
@@ -621,7 +626,8 @@
             0.26851851851851855,
             0.16666666666666666
         ],
-        "order": 3
+        "order": 3,
+        "embedded_order": 2
     },
     "sdirk_norsett_thomson_34": {
         "A": [
@@ -670,7 +676,8 @@
             0,
             0.16666666666666666
         ],
-        "order": 4
+        "order": 4,
+        "embedded_order": 3
     },
     "sdirk_hairer_norsett_wanner_45": {
         "A": [
@@ -733,7 +740,8 @@
             0.5,
             1.0
         ],
-        "order": 5
+        "order": 5,
+        "embedded_order": 4
     },
     "esdirk6": {
         "A": [
@@ -830,6 +838,7 @@
             0.15,
             0.6875
         ],
-        "order": 6
+        "order": 6,
+        "embedded_order": 4
     }
 }

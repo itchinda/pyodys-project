@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import time
 from pyodys import ODEProblem
 from pyodys import ButcherTableau
-from pyodys import RKSolverWithButcherTableau
+from pyodys import RKSolver
 
 
 # Define HIRES System
@@ -57,30 +57,34 @@ def extract_args():
                         type=str, 
                         default='esdirk6',
                         help='The Runge-Kutta method to use.')
-    parser.add_argument('--step-size', '-s', 
+    parser.add_argument('--first-step', '-s', 
                         type=float, 
-                        default=1e-8,
+                        default=1e-2,
                         help='The initial time step size.')
+    parser.add_argument('--min-step','-n', 
+                        type=float,
+                        default=1e-8,
+                        help='The minimum time step size for adaptive stepping.')
+    parser.add_argument('--max-step', '-x',
+                        type=float,
+                        default=1e2,
+                        help='The maximum time step size for adaptive stepping.')
     parser.add_argument('--final-time', '-t', 
                         type=float, 
                         default=321.8122,
                         help='The final time for the simulation.')
-    parser.add_argument('--tolerance', '-tol', 
+    parser.add_argument('--adaptive-rtol', '-tol', 
                         type=float,
                         default=1e-8,
+                        dest='adaptive_rtol',
                         help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive-stepping', 
+    parser.add_argument('--no-adaptive', 
                         action='store_false', 
-                        dest='adaptive_stepping',
+                        dest='adaptive',
                         help='Disable adaptive time stepping.')
-    parser.add_argument('--min-step-size','-n', 
-                        type=float,
-                        default=1e-8,
-                        help='The minimum time step size for adaptive stepping.')
-    parser.add_argument('--max-step-size', '-x',
-                        type=float,
-                        default=1e2,
-                        help='The maximum time step size for adaptive stepping.')
+    parser.add_argument('--verbose', '-v',
+                        action='store_true',
+                        help='Enable the runtime progress.')
     parser.add_argument('--save-csv', 
                         action='store_true', 
                         help='Save the results to a CSV file.')
@@ -88,7 +92,6 @@ def extract_args():
                         action='store_true', 
                         help='Save the results to a png file.')
     return parser.parse_args()
-
 
 if __name__ == '__main__':
     args = extract_args()
@@ -101,13 +104,14 @@ if __name__ == '__main__':
     hires_system = HIRESModel(t0, tf, u0)
 
     # solver
-    solver = RKSolverWithButcherTableau(
-                butcher_tableau = ButcherTableau.from_name(args.method),
-                initial_step_size = args.step_size,
-                adaptive_time_stepping = args.adaptive_stepping,
-                min_step_size = args.min_step_size,
-                max_step_size = args.max_step_size,
-                target_relative_error = args.tolerance 
+    solver = RKSolver(
+                method = args.method,
+                first_step = args.first_step,
+                adaptive = args.adaptive,
+                min_step = args.min_step,
+                max_step = args.max_step,
+                adaptive_rtol = args.adaptive_rtol,
+                verbose=args.verbose
             )
 
     # Solve the system
