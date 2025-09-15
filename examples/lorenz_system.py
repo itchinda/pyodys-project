@@ -51,10 +51,10 @@ if __name__ == '__main__':
                         help='The final time for the simulation.')
     parser.add_argument('--adaptive-rtol', '-tol', 
                         type=float,
-                        default=1e-10,
+                        default=1e-8,
                         help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--adaptive', 
-                        action='store_true', 
+    parser.add_argument('--no-adaptive', 
+                        action='store_false', 
                         dest='adaptive',
                         help='Disable adaptive time stepping.')
     parser.add_argument('--min-step','-n', 

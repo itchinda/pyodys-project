@@ -54,8 +54,8 @@ def extract_args():
                         type=float,
                         default=1e-6,
                         help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--adaptive', 
-                        action='store_true', 
+    parser.add_argument('--no-adaptive', 
+                        action='store_false', 
                         dest='adaptive',
                         help='Enable adaptive time stepping.')
     parser.add_argument('--min-step','-n', 

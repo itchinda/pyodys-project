@@ -339,15 +339,30 @@ class ButcherTableau:
             a_stable = "Yes" if self.a_stable else "No"
         if self.l_stable is not None:
             l_stable = "Yes" if self.l_stable else "No"
+        # solver_info = (
+        #             f"Type: {rk_type}\n"
+        #             f"Stages: {self.n_stages}\n"
+        #             f"Order: {self.order}\n"
+        #             f"Embedded: {"Yes" if self.with_prediction else "No"}"
+        #             f"{f"\nEmbedded order: {self.embedded_order}" if self.with_prediction else ""}"
+        #             f"{f"\nA-stable: {a_stable}" if self.a_stable is not None else ""}"
+        #             f"{f"\nL-stable: {a_stable}" if self.l_stable is not None else ""}" 
+        #         )  # Does not work for python 3.11 and older versions
+
         solver_info = (
-                    f"Type: {rk_type}\n"
-                    f"Stages: {self.n_stages}\n"
-                    f"Order: {self.order}\n"
-                    f"Embedded: {"Yes" if self.with_prediction else "No"}"
-                    f"{f"\nEmbedded order: {self.embedded_order}" if self.with_prediction else ""}"
-                    f"{f"\nA-stable: {a_stable}" if self.a_stable is not None else ""}"
-                    f"{f"\nL-stable: {a_stable}" if self.l_stable is not None else ""}"
+            f"Type: {rk_type}\n"
+            f"Stages: {self.n_stages}\n"
+            f"Order: {self.order}\n"
+            f"Embedded: {'Yes' if self.with_prediction else 'No'}"
         )
+        if self.with_prediction:
+            solver_info += f"\nEmbedded order: {self.embedded_order}"
+
+        if self.a_stable is not None:
+            solver_info += f"\nA-stable: {self.a_stable}"
+
+        if self.l_stable is not None:
+            solver_info += f"\nL-stable: {self.l_stable}"
         return solver_info
 
     @classmethod
