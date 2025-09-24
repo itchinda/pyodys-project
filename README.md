@@ -123,13 +123,13 @@ if __name__ == "__main__":
     problem = CoupledLinearSystem(t_init, t_final, u_init)
 
     solver = PyodysSolver(
-        method="sdirk43",   # or "erk2", "erk4", "sdirk2", "esdirk64", "bdf4", etc.
-        first_step=0.01,
-        adaptive=True,
-        min_step=1e-6,
-        max_step=1.0,
-        rtol=1e-6,
-        atol=1e-6
+      method = 'sdirk43',
+      first_step = 1e-2,
+      adaptive = True,
+      min_step = 1e-6,
+      max_step = 1.0,
+      atol = 1e-10,
+      rtol = 1e-8
     )
 
     times, U = solver.solve(problem)
