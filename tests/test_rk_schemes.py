@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
-from pyodys import ButcherTableau
+from pyodys import RKScheme
 
 
 # --- Cas de test 1: Données valides ---
-class TestButcherTableau:
+class TestRKScheme:
 
     def test_valide_schema_explicite(self):
         A = np.array([
@@ -15,8 +15,8 @@ class TestButcherTableau:
         ])
         B = np.array([1/6, 1/3, 1/3, 1/6])
         C = np.array([0.0, 0.5, 0.5, 1.0])
-        schema = ButcherTableau(A, B, C, 4)
-        assert isinstance(schema, ButcherTableau)
+        schema = RKScheme(A, B, C, 4)
+        assert isinstance(schema, RKScheme)
 
     def test_valid_sdirk_schema(self):
         alpha = 5/6
@@ -31,50 +31,50 @@ class TestButcherTableau:
             [61/150, 2197/2100, 19/100, -9/14]
         ])
         C = np.array([alpha, 10/39, 0, 1/6])
-        schema = ButcherTableau(A, B, C, 4, 3)
-        assert isinstance(schema, ButcherTableau)
+        schema = RKScheme(A, B, C, 4, 3)
+        assert isinstance(schema, RKScheme)
 
 # --- Cas de test 2: Types invalides ---
 def test_invalid_type_A():
     with pytest.raises(TypeError, match="A doit être une matrice numpy de dimension 2."):
-        ButcherTableau([1, 2], np.array([1]), np.array([1]), 1)
+        RKScheme([1, 2], np.array([1]), np.array([1]), 1)
 
 def test_invalid_type_B():
     with pytest.raises(TypeError, match="B doit être un vecteur numpy de dimension 1 ou 2."):
-        ButcherTableau(np.array([[1]]), [1], np.array([1]), 1)
+        RKScheme(np.array([[1]]), [1], np.array([1]), 1)
 
 def test_invalid_type_C():
     with pytest.raises(TypeError, match="C doit être un vecteur numpy de dimension 1 ou 2."):
-        ButcherTableau(np.array([[1]]), np.array([1]), [1], 1)
+        RKScheme(np.array([[1]]), np.array([1]), [1], 1)
 
 def test_invalid_type_order():
     with pytest.raises(TypeError, match="Le paramètre 'order' doit être de type entier ou réel."):
-        ButcherTableau(np.array([[1]]), np.array([1]), np.array([1]), "un")
+        RKScheme(np.array([[1]]), np.array([1]), np.array([1]), "un")
 
 def test_entrees_non_reelles_ou_entieres_A():
     A = np.array([['a', 'b'], ['c', 'd']])
     with pytest.raises(TypeError, match="Les tableaux A, B, et C doivent contenir des nombres"):
-        ButcherTableau(A, np.array([1, 2]), np.array([1, 2]), 2)
+        RKScheme(A, np.array([1, 2]), np.array([1, 2]), 2)
 
 # --- Cas de test 3: Dimensions incompatibles ---
 def test_matrice_A_non_carree():
     A = np.array([[1, 2, 3], [4, 5, 6]])
     with pytest.raises(ValueError, match="La matrice A doit être carrée."):
-        ButcherTableau(A, np.array([1, 2, 3]), np.array([1, 2, 3]), 3)
+        RKScheme(A, np.array([1, 2, 3]), np.array([1, 2, 3]), 3)
 
 def test_dimensions_incompatibles():
     A = np.array([[1, 2], [3, 4]])
     B = np.array([1, 2, 3])
     C = np.array([1, 2])
     with pytest.raises(ValueError, match="Le vecteur B doit avoir une taille de 2."):
-        ButcherTableau(A, B, C, 2)
+        RKScheme(A, B, C, 2)
 
 def test_incorrect_B_shape():
     A = np.array([[1, 2], [3, 4]])
     B = np.array([[1, 2], [3, 4], [5, 6]])
     C = np.array([1, 2])
     with pytest.raises(ValueError, match="Le vecteur B doit avoir 2 colonnes et 1 ou 2 lignes."):
-        ButcherTableau(A, B, C, 2, 1)
+        RKScheme(A, B, C, 2, 1)
 
 def test_check_consistency_pass():
     # A matches C
@@ -83,7 +83,7 @@ def test_check_consistency_pass():
     C = np.sum(A, axis=1)
     
     # Should not raise
-    tableau = ButcherTableau(A, B, C, 2, check_consistency=True)
+    tableau = RKScheme(A, B, C, 2, check_consistency=True)
     assert np.allclose(tableau.C, np.sum(tableau.A, axis=1))
 
 def test_check_consistency_fail():
@@ -93,14 +93,14 @@ def test_check_consistency_fail():
     C = np.array([0.0, 0.5])
     
     with pytest.raises(ValueError, match="Sum of B coefficients does not match 1."):
-        ButcherTableau(A, B, C, 2, check_consistency=True)
+        RKScheme(A, B, C, 2, check_consistency=True)
 
 def test_check_consistency_default():
     # By default, check_consistency=False
     A = np.array([[0.0, 0.0], [0.5, 0.0]])
     B = np.array([0.5, 0.5])
     C = np.array([0.0, 1.0])  # mismatch
-    tableau = ButcherTableau(A, B, C, 2)  # Should not raise
+    tableau = RKScheme(A, B, C, 2)  # Should not raise
     assert np.allclose(tableau.C, C)
 
 @pytest.fixture
@@ -111,70 +111,70 @@ def tableau_examples():
     A_exp = np.array([[0.0, 0.0], [0.5, 0.0]])
     B_exp = np.array([0.5, 0.5])
     C_exp = np.sum(A_exp, axis=1)
-    explicit = ButcherTableau(A_exp, B_exp, C_exp, 2)
+    explicit = RKScheme(A_exp, B_exp, C_exp, 2)
 
     # Implicit RK
     A_imp = np.array([[0.5, 0.5], [0.5, 0.5]])
     B_imp = np.array([0.5, 0.5])
     C_imp = np.sum(A_imp, axis=1)
-    implicit = ButcherTableau(A_imp, B_imp, C_imp, 2)
+    implicit = RKScheme(A_imp, B_imp, C_imp, 2)
 
     # DIRK
     A_dirk = np.array([[0.5, 0.0], [0.3, 0.6]])
     B_dirk = np.array([0.5, 0.5])
     C_dirk = np.sum(A_dirk, axis=1)
-    dirk = ButcherTableau(A_dirk, B_dirk, C_dirk, 2)
+    dirk = RKScheme(A_dirk, B_dirk, C_dirk, 2)
 
     # SDIRK
     A_sdirk = np.array([[0.6, 0.0], [0.4, 0.6]])
     B_sdirk = np.array([0.5, 0.5])
     C_sdirk = np.sum(A_sdirk, axis=1)
-    sdirk = ButcherTableau(A_sdirk, B_sdirk, C_sdirk, 2)
+    sdirk = RKScheme(A_sdirk, B_sdirk, C_sdirk, 2)
 
     # ESDIRK
     A_esdirk = np.array([[0.0, 0.0], [0.3, 0.6]])
     B_esdirk = np.array([0.4, 0.6])
     C_esdirk = np.sum(A_esdirk, axis=1)
-    esdirk = ButcherTableau(A_esdirk, B_esdirk, C_esdirk, 2)
+    esdirk = RKScheme(A_esdirk, B_esdirk, C_esdirk, 2)
 
     # Embedded
     A_emb = np.array([[0.5, 0.0], [0.3, 0.6]])
     B_emb = np.array([[0.4, 0.6], [0.25, 0.75]])
     C_emb = np.sum(A_emb, axis=1)
-    embedded = ButcherTableau(A_emb, B_emb, C_emb, 2, 1)
+    embedded = RKScheme(A_emb, B_emb, C_emb, 2, 1)
 
     # --- Negative cases ---
     # Not strictly lower-triangular (fails explicit)
     A_non_explicit = np.array([[0.1, 0.0], [0.3, 0.6]])
     B_non_explicit = np.array([0.5, 0.5])
     C_non_explicit = np.sum(A_non_explicit, axis=1)
-    non_explicit = ButcherTableau(A_non_explicit, B_non_explicit, C_non_explicit, 2)
+    non_explicit = RKScheme(A_non_explicit, B_non_explicit, C_non_explicit, 2)
 
     # Diagonal zeros (fails DIRK)
     A_zero_diag = np.array([[0.0, 0.0], [0.3, 0.0]])
     B_zero_diag = np.array([0.5, 0.5])
     C_zero_diag = np.sum(A_zero_diag, axis=1)
-    zero_diag = ButcherTableau(A_zero_diag, B_zero_diag, C_zero_diag, 2)
+    zero_diag = RKScheme(A_zero_diag, B_zero_diag, C_zero_diag, 2)
 
     # --- SDIRK edge cases ---
     # Diagonal entries not all equal
     A_sdirk_wrong_diag = np.array([[0.6, 0.0], [0.5, 0.7]])
     B_sdirk_wrong_diag = np.array([0.5, 0.5])
     C_sdirk_wrong_diag = np.sum(A_sdirk_wrong_diag, axis=1)
-    sdirk_wrong_diag = ButcherTableau(A_sdirk_wrong_diag, B_sdirk_wrong_diag, C_sdirk_wrong_diag, 2)
+    sdirk_wrong_diag = RKScheme(A_sdirk_wrong_diag, B_sdirk_wrong_diag, C_sdirk_wrong_diag, 2)
 
     # --- ESDIRK edge cases ---
     # First stage not zero
     A_esdirk_first_nonzero = np.array([[0.1, 0.0], [0.3, 0.6]])
     B_esdirk_first_nonzero = np.array([0.4, 0.6])
     C_esdirk_first_nonzero = np.sum(A_esdirk_first_nonzero, axis=1)
-    esdirk_first_nonzero = ButcherTableau(A_esdirk_first_nonzero, B_esdirk_first_nonzero, C_esdirk_first_nonzero, 2)
+    esdirk_first_nonzero = RKScheme(A_esdirk_first_nonzero, B_esdirk_first_nonzero, C_esdirk_first_nonzero, 2)
 
     # Remaining diagonals not equal
     A_esdirk_unequal_diag = np.array([[0.0, 0.0, 0.0], [0.3, 0.6, 0.0], [0.1, 0.5, 0.9]])
     B_esdirk_unequal_diag = np.array([0.4, 0.6, 0.6])
     C_esdirk_unequal_diag = np.sum(A_esdirk_unequal_diag, axis=1)
-    esdirk_unequal_diag = ButcherTableau(A_esdirk_unequal_diag, B_esdirk_unequal_diag, C_esdirk_unequal_diag, 2)
+    esdirk_unequal_diag = RKScheme(A_esdirk_unequal_diag, B_esdirk_unequal_diag, C_esdirk_unequal_diag, 2)
 
 
     return {
@@ -273,19 +273,19 @@ def test_zero_diag_is_not_dirk(tableau_examples):
 class TestParNom:
 
     def test_des_proprietes_des_schemas_predefinis(self):
-        for nom in ButcherTableau.available_schemes():
-            tableau = ButcherTableau.par_nom(nom)
-            assert isinstance(tableau, ButcherTableau)
+        for nom in RKScheme.available_schemes():
+            tableau = RKScheme.par_nom(nom)
+            assert isinstance(tableau, RKScheme)
 
     def test_des_proprietes_erk1(self):
-        tableau = ButcherTableau.par_nom('erk1')
+        tableau = RKScheme.par_nom('erk1')
         assert tableau.n_stages == 1
         assert tableau.is_explicit
         assert not tableau.is_implicit
         assert not tableau.is_diagonally_implicit
 
     def test_des_proprietes_sdirk1(self):
-        tableau = ButcherTableau.par_nom('sdirk1')
+        tableau = RKScheme.par_nom('sdirk1')
         assert tableau.n_stages == 1
         assert tableau.is_implicit
         assert not tableau.is_explicit
@@ -293,14 +293,14 @@ class TestParNom:
         assert tableau.is_sdirk
 
     def test_des_proprietes_erk4(self):
-        tableau = ButcherTableau.par_nom('erk4')
+        tableau = RKScheme.par_nom('erk4')
         assert tableau.n_stages == 4
         assert tableau.is_explicit
         assert not tableau.is_implicit
         assert not tableau.is_diagonally_implicit
 
     def test_des_proprietes_sdirk_order3_predefini(self):
-        tableau = ButcherTableau.par_nom('sdirk_norsett_thomson_34')
+        tableau = RKScheme.par_nom('sdirk43')
         assert tableau.n_stages == 4
         assert tableau.is_implicit
         assert not tableau.is_explicit
@@ -308,16 +308,16 @@ class TestParNom:
 
     def test_nom_inconnu(self):
         with pytest.raises(ValueError, match=r"Nom de schema inconnu: 'non_existent'"):
-            ButcherTableau.par_nom('non_existent')
+            RKScheme.par_nom('non_existent')
 
     def test_insensibilite_a_la_casse(self):
-        tableau = ButcherTableau.par_nom('erk1')
-        assert isinstance(tableau, ButcherTableau)
+        tableau = RKScheme.par_nom('erk1')
+        assert isinstance(tableau, RKScheme)
         assert tableau.order == 1
 
-@pytest.mark.parametrize("scheme", [m for m in ButcherTableau.available_schemes()])
+@pytest.mark.parametrize("scheme", [m for m in RKScheme.available_schemes()])
 def test_sum_of_matrix_a_per_rows_matches_c(scheme):
     """Test that sum of A coefficients per row matches C coefficients."""
-    tableau = ButcherTableau.par_nom(scheme)
+    tableau = RKScheme.par_nom(scheme)
     sum_a = np.sum(tableau.A, axis=1)
     assert np.allclose(tableau.C, sum_a, rtol=1e-7, atol=1e-7)

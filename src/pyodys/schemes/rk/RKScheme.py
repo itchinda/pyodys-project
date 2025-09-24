@@ -4,9 +4,8 @@ import os
 from typing import Union, ClassVar, List
 from functools import lru_cache
 from typing import Dict, Any
-
-_DEFAULT_ZERO_TOL = 1e-14
-
+from ..scheme import Scheme
+from ...utils.pyodys_utils import _DEFAULT_ZERO_TOL
 
 @lru_cache(maxsize=1)
 def _load_schemes() -> Dict[str, Any]:
@@ -33,9 +32,9 @@ def _load_schemes() -> Dict[str, Any]:
 
     return data
 
-class ButcherTableau:
+class RKScheme(Scheme):
     """
-    Representation of a Runge-Kutta Butcher tableau.
+    Representation of a Runge-Kutta scheme using a Butcher tableau.
 
     A Butcher tableau is defined by three arrays (A, B, C) and an order.
     It encodes the coefficients of a Runge-Kutta method for ODE integration.
@@ -87,14 +86,14 @@ class ButcherTableau:
     -------
     __str__():
         Return a formatted string of the Butcher tableau.
-    par_nom(nom: str) -> ButcherTableau:
+    par_nom(nom: str) -> RKScheme:
         Load a predefined scheme by French name.
-    from_name(name: str) -> ButcherTableau:
+    from_name(name: str) -> RKScheme:
         Load a predefined scheme by English name (alias).
 
     Examples
     --------
-    >>> tableau = ButcherTableau.from_name("erk4")
+    >>> tableau = RKScheme.from_name("erk4")
     >>> print(tableau)
     Runge-Kutta method of order 4
     
@@ -151,11 +150,11 @@ class ButcherTableau:
         Examples
         --------
         >>> import numpy as np
-        >>> from pyodys import ButcherTableau
+        >>> from pyodys import RKScheme
         >>> A = np.array([[0.0, 0.0], [0.5, 0.0]])
         >>> B = np.array([0.5, 0.5])
         >>> C = np.sum(A, axis=1)
-        >>> tableau = ButcherTableau(A, B, C, order=2, check_consistency=True)
+        >>> tableau = RKScheme(A, B, C, order=2, check_consistency=True)
         """
         # Type checks
         if not isinstance(A, np.ndarray) or A.ndim != 2:
@@ -201,11 +200,11 @@ class ButcherTableau:
             rows_C, cols_C = C.shape
             if rows_C != s or cols_C != 1:
                 raise ValueError(f"Le vecteur C doit être une matrice {s}x1.")
-
+            
+        super().__init__(order)
         self.A: np.ndarray = A
         self.B: np.ndarray = B
         self.C: np.ndarray = C
-        self.order: Union[int, float] = order
         self.embedded_order: Union[int, float] = embedded_order
         self.a_stable = a_stable
         self.l_stable = l_stable
@@ -339,15 +338,7 @@ class ButcherTableau:
             a_stable = "Yes" if self.a_stable else "No"
         if self.l_stable is not None:
             l_stable = "Yes" if self.l_stable else "No"
-        # solver_info = (
-        #             f"Type: {rk_type}\n"
-        #             f"Stages: {self.n_stages}\n"
-        #             f"Order: {self.order}\n"
-        #             f"Embedded: {"Yes" if self.with_prediction else "No"}"
-        #             f"{f"\nEmbedded order: {self.embedded_order}" if self.with_prediction else ""}"
-        #             f"{f"\nA-stable: {a_stable}" if self.a_stable is not None else ""}"
-        #             f"{f"\nL-stable: {a_stable}" if self.l_stable is not None else ""}" 
-        #         )  # Does not work for python 3.11 and older versions
+
 
         solver_info = (
             f"Type: {rk_type}\n"
@@ -366,17 +357,17 @@ class ButcherTableau:
         return solver_info
 
     @classmethod
-    def from_name(cls, name: str) -> "ButcherTableau":
+    def from_name(cls, name: str) -> "RKScheme":
         """
         Load a predefined scheme by name.
         Args:
             name : The name of the method.
 
         Examples:
-        >>> from pyodys import ButcherTableau
-        >>> print(ButcherTableau.available_schemes())
+        >>> from pyodys import RKScheme
+        >>> print(RKScheme.available_schemes())
         ['erk1', 'erk2_midpoint', 'erk4', 'sdirk1', 'sdirk2_midpoint', 'sdirk43_crouzeix', 'cooper_verner', 'euler_heun', 'bogacki_shampine', 'fehlberg45', 'dopri5', 'sdirk21_crouzeix_raviart', 'sdirk_norsett_thomson_23', 'sdirk_norsett_thomson_34', 'sdirk_hairer_norsett_wanner_45', 'esdirk6']
-        >>> tableau = ButcherTableau.from_name('erk4')
+        >>> tableau = RKScheme.from_name('erk4')
         >>> tableau.info()
         Type: Explicit RK
         Stages: 4
@@ -406,10 +397,10 @@ class ButcherTableau:
         except KeyError:
             l_stable = None
 
-        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"], True, embedded_order, a_stable, l_stable)
+        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"], embedded_order, True, a_stable, l_stable)
 
     @classmethod
-    def par_nom(cls, nom: str) -> "ButcherTableau":
+    def par_nom(cls, nom: str) -> "RKScheme":
         """Alias in French for `from_name`."""
         return cls.from_name(nom)
 
