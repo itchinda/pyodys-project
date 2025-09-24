@@ -6,9 +6,7 @@ from matplotlib.animation import FuncAnimation
 from typing import Callable
 import time
 
-from pyodys import ODEProblem
-from pyodys import ButcherTableau
-from pyodys import RKSolver
+from pyodys import ODEProblem, PyodysSolver
 
 # ---------------- Laplacian ----------------
 def build_1d_laplacian(N: int, h: float, dtype=float) -> csr_matrix:
@@ -67,19 +65,23 @@ parabolic_problem = ParabolicProblem(N=Nx, t_init=t0, t_final=tf,
                                      u0_function=u0_func,
                                      forcing_func=forcing_vector)
 
-solver = RKSolver(
-                method=ButcherTableau.from_name("esdirk6"),
-                first_step=1e-5,
-                adaptive=True,
-                adaptive_rtol=1e-8,
-                min_step=1e-8,
-                max_step=1e-1,
-                auto_check_sparsity =True
-            )
+pyodys_opts = {
+    "method": "esdirk64",
+    "adaptive" : True,
+    "fixed_step": 1e-5,
+    "atol": 1e-8,
+    "rtol": 1e-8,
+    "min_step": 1e-10,
+    "max_step": 5e-1,
+    "auto_check_sparsity": True,
+    "verbose": True,
+    "initial_step_safety": 1e-2
+}
 
+pyodys_solver = PyodysSolver( **pyodys_opts)
 # ---------------- Solve ----------------
 start = time.time()
-times, numerical_solutions = solver.solve(parabolic_problem)
+times, numerical_solutions = pyodys_solver.solve(parabolic_problem)
 Elapsed = time.time() - start
 print(f"Elapsed time = {Elapsed}")
 
@@ -104,7 +106,7 @@ def init():
 
 # Subsample frames if too many
 n_frames = len(times)
-skip = max(1, n_frames // 200)
+skip = 1 # max(1, n_frames // 200)
 
 def update(frame):
     line_num.set_data(x_interior, numerical_solutions[frame])
@@ -112,7 +114,7 @@ def update(frame):
     ax.set_title(f"t = {times[frame]:.5f}")
     return line_num, line_exact
 
-total_duration = 5.0
+total_duration = 10.0
 interval = total_duration / n_frames * 1000
 anim = FuncAnimation(fig, update, frames=range(0, n_frames, skip),
                      init_func=init, blit=True, interval=interval*skip)

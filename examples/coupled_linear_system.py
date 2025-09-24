@@ -2,9 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Using the top-level imports from the installed package
-from pyodys import ODEProblem
-from pyodys import ButcherTableau
-from pyodys import RKSolver
+from pyodys import ODEProblem, PyodysSolver
 
 # Define coupled linear system
 class SystemeCouple(ODEProblem):
@@ -31,11 +29,12 @@ if __name__ == '__main__':
     systeme = SystemeCouple(t_init, t_final, u_init)
 
     # Using a SDIRK solver
-    solver_sdirk = RKSolver(
-        method = ButcherTableau.from_name('sdirk_hairer_norsett_wanner_45'),                             
-        first_step = 0.1,
+    solver_sdirk = PyodysSolver(
+        method = "sdirk54",                             
+        first_step = None,
         adaptive = True,
-        adaptive_rtol = 1e-10,
+        atol = 1e-10,
+        rtol = 1e-10,
         min_step = 1e-6,
         max_step = 1.0
     )
@@ -69,7 +68,7 @@ if __name__ == '__main__':
 
     plt.tight_layout()
     
-    plt.savefig("results.png")
+    #plt.savefig("results.png")
     
     plt.show()
     

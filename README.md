@@ -1,26 +1,34 @@
-# Numerical ODE Solver with Butcher Tableaus
+# PyOdys – Numerical ODE Solvers for Large and Stiff Systems
 
-This repository contains a robust and flexible Python package for solving **ordinary differential equations (ODEs)**.  
-The solver is built to handle both **explicit and implicit Runge–Kutta methods** using a powerful **Butcher tableau** approach, and it includes a **numerical Jacobian** for convenience.
+PyOdys is a robust and flexible Python package for solving **ordinary differential equations (ODEs)**. 
+It supports both **Runge–Kutta schemes** (explicit, DIRK) and **BDF multistep methods**, with adaptive time-stepping and strong support for **sparse Jacobians**—making it well-suited for large-scale and stiff problems. It also includes a **numerical Jacobian** for convenience.
 
 ---
 
 ## Features
 
-- **Butcher Tableau-based Solver**:  
-  A general-purpose Runge–Kutta solver configurable with any Butcher tableau. Supports a wide range of methods, from classic RK4 to advanced implicit SDIRK schemes.
+- **Unified Solver Interface**:  
+  The `PyodysSolver` class provides a single entry point. You just specify the method name (e.g. `"erk4"`, `"esdirk64"`, `"bdf4"`) and PyOdys automatically selects the correct solver backend: RK or BDF (**planned**).
+
+- **Wide Range of Methods**:
+  - **Explicit Runge–Kutta**: classic schemes like RK4 (`erk4`) and Dormand–Prince (`dopri54`).
+  - **Implicit Runge-Kutta**: DIRK, SDIRK and ESDIRK methods for stiff problems.
+  - **BDF methods (planned)**: multistep implicit solvers for highly stiff systems. A `BDFSolver` class is included in the design, but support for BDF methods is still **under development** and not yet available in this release.
+
+- **PyOdys is designed to be highly extensible**:
+  - Users may plug in custom Runge–Kutta schemes through the `RKScheme` class.
+  - Support for custom BDF schemes will be available through the `BDFScheme` class once the BDF solver is finalized.
 
 - **Adaptive Time-Stepping**: 
-  The solver automatically adjusts the time step size based on local error estimates, ensuring that a solution is found with the specified accuracy while minimizing computational effort. This is crucial for solving problems with dynamics that change over time
+  Automatic control of time step size based on local error estimates. Balances accuracy and efficiency, crucial for multiscale dynamics.
 
 - **Implicit Method Support**:  
-  Uses the **Newton–Raphson method** to solve the nonlinear systems that arise in implicit ODEs, making it suitable for stiff problems.
+  Nonlinear systems are solved with **Newton iterations**. Linear solves exploit sparse Jacobians (`scipy.sparse.linalg`).
 
-- **Flexible System Definition**:  
+- **Flexible Problem Definition:**:  
   Define any ODE system by inheriting from the `ODEProblem` abstract class. A fallback **numerical Jacobian** (central finite differences) is provided automatically.
-
-- **Analytical Jacobian Overrides**:  
-  For improved performance and accuracy, users can override the default numerical Jacobian with a hand-derived one.
+  - Default: numerical Jacobian(central finite differences) is provided automatically.
+  - Optional: user-supplied analytical/sparse Jacobian for efficiency.
 
 - **Example Systems Included**:
   - **Lorenz System**: Demonstrates handling of chaotic dynamics and generates the famous butterfly attractor.  
@@ -33,7 +41,7 @@ The solver is built to handle both **explicit and implicit Runge–Kutta methods
 
 ### Prerequisites
 
-You will need **Python** and the following packages:
+You will need **Python** (version $\geq$ 3.8) and the following packages:
 
 - `numpy`  
 - `scipy`  
@@ -71,7 +79,7 @@ To solve the Lorenz System with a simple command, you can use one of the provide
 python examples/lorenz_system.py --method dopri5 --final-time 50.0
 ```
 
-You can customize the simulation by changing parameters like the method (`--method`), final time (`--final-time`), step size (`--first-step`), and tolerance (`--adaptive-rtol`).
+You can customize the simulation by changing parameters like the method (`--method`), adaptive stepping (`--adaptive`), final time (`--final-time`), initial step (`--first-step`), minimal step (`--min-step`), maximal step (`--max-step`), adaptive (`--atol`) and relative (`--rtol`) tolerances.
 
 ## Code Example: Coupled Linear System
 
@@ -91,64 +99,58 @@ $$y(t) = e^{-t}$$
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from pyodys import ODEProblem, ButcherTableau, RKSolver
+from pyodys import ODEProblem, PyodysSolver
 
-# Define coupled linear system
+# Define coupled system
 class CoupledLinearSystem(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
-    
     def evaluate_at(self, t, u):
         x, y = u
         return np.array([-x + y, -y])
 
 # Analytical solution
-def solution_analytique(t, u0):
+def analytical_solution(t, u0):
     tau = t - 0.0
     x0, y0 = u0
     x = np.exp(-tau) * (x0 + y0 * tau)
     y = y0 * np.exp(-tau)
     return np.array([x, y])
 
-if __name__ == '__main__':
-    # Initial conditions
-    t_init = 0.0
-    t_final = 10.0
+if __name__ == "__main__":
+    t_init, t_final = 0.0, 10.0
     u_init = [1.0, 1.0]
-    ode_system = CoupledLinearSystem(t_init, t_final, u_init)
+    problem = CoupledLinearSystem(t_init, t_final, u_init)
 
-    # Use a SDIRK solver for demonstration
-    solver_sdirk = RKSolver(method = 'sdirk_hairer_norsett_wanner_45',
-                            first_step = 0.01,
-                            adaptive=True,
-                            min_step=1e-6,
-                            max_step=1.0,
-                            adaptive_rtol=1e-6)
+    solver = PyodysSolver(
+        method="sdirk43",   # or "erk2", "erk4", "sdirk2", "esdirk64", "bdf4", etc.
+        first_step=0.01,
+        adaptive=True,
+        min_step=1e-6,
+        max_step=1.0,
+        rtol=1e-6,
+        atol=1e-6
+    )
 
-    times, solutions = solver_sdirk.solve( ode_system )
+    times, U = solver.solve(problem)
 
-    # Compute analytical solution and errors
-    analytical_solutions = np.array([solution_analytique(t, u_init) for t in times])
-    error = np.linalg.norm(solutions - analytical_solutions, axis=1)
+    # Analytical
+    U_exact = np.array([analytical_solution(t, u_init) for t in times])
+    error = np.linalg.norm(U - U_exact, axis=1)
 
-    # Plot solutions and errors
+    # Plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-
-    ax1.plot(times, solutions[:, 0], 'b-', label='x(t) Numerical')
-    ax1.plot(times, solutions[:, 1], 'r-', label='y(t) Numerical')
-    ax1.plot(times, analytical_solutions[:, 0], 'k--', label='x(t) Analytical')
-    ax1.plot(times, analytical_solutions[:, 1], 'r-.', label='y(t) Analytical')
-    ax1.set_title("Coupled Linear System: Solutions")
-    ax1.set_xlabel("Time")
-    ax1.set_ylabel("Value")
+    ax1.plot(times, U[:, 0], "b-", label="x(t) Numerical")
+    ax1.plot(times, U[:, 1], "r-", label="y(t) Numerical")
+    ax1.plot(times, U_exact[:, 0], "k--", label="x(t) Analytical")
+    ax1.plot(times, U_exact[:, 1], "r-.", label="y(t) Analytical")
+    ax1.set_title("Coupled Linear System")
     ax1.legend()
     ax1.grid(True)
 
-    ax2.plot(times, error, 'b-', label='L2 Norm Error')
-    ax2.set_yscale('log')
+    ax2.plot(times, error, "b-", label="L2 Error")
+    ax2.set_yscale("log")
     ax2.set_title("Error vs Analytical Solution")
-    ax2.set_xlabel("Time")
-    ax2.set_ylabel("Error")
     ax2.legend()
     ax2.grid(True)
 

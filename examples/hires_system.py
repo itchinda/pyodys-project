@@ -3,9 +3,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from pyodys import ODEProblem
-from pyodys import ButcherTableau
-from pyodys import RKSolver
+from pyodys import ODEProblem, PyodysSolver
 
 
 # Define HIRES System
@@ -52,45 +50,53 @@ class HIRESModel(ODEProblem):
 
 
 def extract_args():
-    parser = argparse.ArgumentParser(description="Solve the HIRES stiff system.")
+    parser = argparse.ArgumentParser(description="Solve the Robertson System.")
     parser.add_argument('--method', '-m', 
                         type=str, 
-                        default='esdirk6',
+                        default='sdirk43',
                         help='The Runge-Kutta method to use.')
+    parser.add_argument('--fixed-step', '-f', 
+                        type=float, 
+                        default=1e-4,
+                        help='The fixed step size used if npt adaptive stepping.')
     parser.add_argument('--first-step', '-s', 
                         type=float, 
-                        default=1e-2,
+                        default=None,
                         help='The initial time step size.')
+    parser.add_argument('--final-time', '-t', 
+                        type=float, 
+                        default=324,
+                        help='The final time for the simulation.')
+    parser.add_argument('--rtol', '-rt', 
+                        type=float,
+                        default=1e-8,
+                        help='The target relative error for adaptive time stepping.')
+    parser.add_argument('--atol', '-at', 
+                        type=float,
+                        default=1e-8,
+                        help='The target absolute error for adaptive time stepping.')
+    parser.add_argument('--no-adaptive', 
+                        action='store_false', 
+                        dest='adaptive',
+                        help='Disable adaptive time stepping.')
     parser.add_argument('--min-step','-n', 
                         type=float,
                         default=1e-8,
                         help='The minimum time step size for adaptive stepping.')
     parser.add_argument('--max-step', '-x',
                         type=float,
-                        default=1e2,
+                        default=10.0,
                         help='The maximum time step size for adaptive stepping.')
-    parser.add_argument('--final-time', '-t', 
-                        type=float, 
-                        default=321.8122,
-                        help='The final time for the simulation.')
-    parser.add_argument('--adaptive-rtol', '-tol', 
-                        type=float,
-                        default=1e-8,
-                        dest='adaptive_rtol',
-                        help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive', 
-                        action='store_false', 
-                        dest='adaptive',
-                        help='Disable adaptive time stepping.')
-    parser.add_argument('--verbose', '-v',
-                        action='store_true',
-                        help='Enable the runtime progress.')
     parser.add_argument('--save-csv', 
                         action='store_true', 
                         help='Save the results to a CSV file.')
     parser.add_argument('--save-png', 
                         action='store_true', 
                         help='Save the results to a png file.')
+    parser.add_argument('--verbose', '-v',
+                        action='store_true',
+                        help='Print progress info.')
+
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -104,13 +110,15 @@ if __name__ == '__main__':
     hires_system = HIRESModel(t0, tf, u0)
 
     # solver
-    solver = RKSolver(
+    solver = PyodysSolver(
                 method = args.method,
-                first_step = args.first_step,
+                fixed_step = args.fixed_step,
                 adaptive = args.adaptive,
+                first_step = args.first_step,
                 min_step = args.min_step,
                 max_step = args.max_step,
-                adaptive_rtol = args.adaptive_rtol,
+                rtol = args.rtol,
+                atol = args.atol,
                 verbose=args.verbose
             )
 
