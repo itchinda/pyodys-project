@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import time
 from pyodys import ODEProblem, PyodysSolver
 
-# Define Robertson System
-class RobertsonModel(ODEProblem):
+# Define the well-known ergonator System
+class ErgonatorSystem(ODEProblem):
     def __init__(self, t_init, t_final, initial_state, k1=0.04, k2=3.0e7, k3=1.0e4):
         # Call the parent constructor
         super().__init__(t_init, t_final, initial_state)
@@ -93,7 +93,7 @@ if __name__ == '__main__':
     t0 = 0.0
     tf = args.final_time
     u0 = [1.0, 2.0, 3.0]
-    system = RobertsonModel(t0, tf, u0)
+    system = ErgonatorSystem(t0, tf, u0)
 
     # solver
     solver = PyodysSolver(
