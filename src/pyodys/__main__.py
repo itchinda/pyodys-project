@@ -8,7 +8,8 @@ Run with: python -m edo
 import sys
 import shutil
 import argparse
-from pyodys import ButcherTableau
+from pyodys import list_schemes
+
 # ANSI color codes
 RED = "\033[31m"
 GREEN = "\033[32m"
@@ -28,8 +29,8 @@ def print_available_schemes():
     """
     Prints a list of all available Runge-Kutta schemes.
     """
-    print("Available Runge-Kutta schemes:")
-    for name in sorted(ButcherTableau.available_schemes()):
+    print("Available Time Integrator Schemes:")
+    for name in sorted(list_schemes):
         print(f"- {name}")
 
 def main():
@@ -62,11 +63,11 @@ def main():
     print(center_lines(separator))
     
     print("\nAvailable demos:")
-    print("  1. Coupled Linear System")
+    print("  1. Van der Pol Oscillator")
     print("  2. Lorenz System")
-    print("\nRun them with:")
-    print("  python -m edo.exemples.coupled_linear_system")
-    print("  python -m edo.exemples.lorenz_system")
+    print("  3. Robertson Model")
+    print("  4. HIRES System")
+    print("  5. etc.")
     print(f"\n{BLUE}Enjoy solving ODEProblem! {RESET}")
 
     

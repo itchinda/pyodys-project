@@ -1,9 +1,7 @@
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from pyodys import ODEProblem
-from pyodys import ButcherTableau
-from pyodys import RKSolver
+from pyodys import ODEProblem, PyodysSolver
 
 # Define Lorenz System
 class LorenzSystem(ODEProblem):
@@ -33,46 +31,60 @@ class LorenzSystem(ODEProblem):
         ])
         return jacobian_at
 
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(description="Solve the Lorenz System.")
+def extract_args():
+    parser = argparse.ArgumentParser(description="Solve the Robertson System.")
     parser.add_argument('--method', '-m', 
                         type=str, 
-                        default='dopri5',
+                        default='dopri54',
                         help='The Runge-Kutta method to use.')
-    parser.add_argument('--first-step', '-s', 
+    parser.add_argument('--fixed-step', '-s', 
                         type=float, 
-                        default=1e-2,
+                        default=None,
+                        help='The fixed step size. Must be provided for non adaptive stepping.')
+    parser.add_argument('--first-step', '-f', 
+                        type=float, 
+                        default=1e-8,
                         help='The initial time step size.')
     parser.add_argument('--final-time', '-t', 
                         type=float, 
-                        default=100.0,
+                        default=50.0,
                         help='The final time for the simulation.')
-    parser.add_argument('--adaptive-rtol', '-tol', 
+    parser.add_argument('--rtol', '-rt', 
                         type=float,
-                        default=1e-8,
+                        default=1e-10,
                         help='The target relative error for adaptive time stepping.')
+    parser.add_argument('--atol', '-at', 
+                        type=float,
+                        default=1e-10,
+                        help='The target absolute error for adaptive time stepping.')
     parser.add_argument('--no-adaptive', 
                         action='store_false', 
                         dest='adaptive',
                         help='Disable adaptive time stepping.')
     parser.add_argument('--min-step','-n', 
                         type=float,
-                        default=1e-12,
+                        default=1e-10,
                         help='The minimum time step size for adaptive stepping.')
     parser.add_argument('--max-step', '-x',
                         type=float,
-                        default=1.0,
+                        default=1e-2,
                         help='The maximum time step size for adaptive stepping.')
     parser.add_argument('--save-csv', 
                         action='store_true', 
                         help='Save the results to a CSV file.')
+    parser.add_argument('--save-png', 
+                        action='store_true', 
+                        help='Save the results to a png file.')
     parser.add_argument('--verbose', '-v',
                         action='store_true',
                         help='Print progress info.')
 
-    args = parser.parse_args()
+
+    return parser.parse_args()
+
+if __name__ == '__main__':
+
+    args = extract_args()
 
     # Initial conditions
     t0 = 0.0
@@ -83,11 +95,13 @@ if __name__ == '__main__':
                            initial_state=u0)
 
     # solver
-    solver = RKSolver(
+    solver = PyodysSolver(
                     method = args.method,
+                    fixed_step=args.fixed_step,
                     first_step=args.first_step, 
                     adaptive=args.adaptive,
-                    adaptive_rtol=args.adaptive_rtol,
+                    rtol=args.rtol,
+                    atol=args.atol,
                     min_step=args.min_step, 
                     max_step=args.max_step,
                     verbose=args.verbose if args.verbose else False
