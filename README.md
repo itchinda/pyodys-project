@@ -1,3 +1,9 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue)]()
+[![Build](https://github.com/itchinda/pyodys-project/actions/workflows/ci.yml/badge.svg)]()
+
+
+
 # PyOdys – Numerical ODE Solvers for Large and Stiff Systems
 
 PyOdys is a robust and flexible Python package for solving **ordinary differential equations (ODEs)**. 
