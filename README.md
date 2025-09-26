@@ -160,3 +160,58 @@ if __name__ == "__main__":
 ```
 
 ![Quick Example Output Figures](examples/figures/quick_example.png)
+
+###  Defining a Custom Runge–Kutta Scheme
+
+PyOdys allows users to define their **own Runge–Kutta method** via the `RKScheme` class. This is useful if you want to experiment with new schemes, test variants from the literature, or reproduce methods from papers.
+
+#### Example:
+
+```python
+import numpy as np
+from pyodys import RKScheme
+
+# Define Butcher tableau
+A = np.array([
+    [0.0, 0.0],
+    [0.5, 0.0]
+])
+B = np.array([0.0, 1.0])   # weights
+C = np.sum(A, axis=1)      # nodes
+
+# Create scheme
+midpoint = RKScheme(A, B, C, order=2)
+
+print(midpoint)
+print(midpoint.info())
+```
+Output:
+```vbnet 
+Runge-Kutta method of order 2
+
+  0 |   0   0
+0.5 | 0.5   0
+----+---------
+        0   1
+
+Type: Explicit RK
+Stages: 2
+Order: 2
+Embedded: No
+```
+You can then use it in the solver configuration as follows:
+```python
+solver = PyodysSolver(
+      method = midpoint,
+      first_step = 1e-2,
+      adaptive = True,
+      min_step = 1e-6,
+      max_step = 1.0,
+      atol = 1e-10,
+      rtol = 1e-8
+    )
+
+``` 
+
+
+
