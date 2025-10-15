@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from numpy.typing import ArrayLike
+from typing import Optional, Tuple, Union
 from scipy.sparse import identity, csc_matrix
 import sys
 
@@ -219,7 +220,7 @@ class ODEProblem(ABC, metaclass=FinalChecker):
         else:
             return self._compute_jacobian(t, state)
 
-    def _get_jacobian_sparsity_pattern(self) -> tuple[np.ndarray, np.ndarray] | None:
+    def _get_jacobian_sparsity_pattern(self) -> Optional[tuple[np.ndarray, np.ndarray]]:
         """
         Optional helper method to return the structural non-zero pattern of the Jacobian.
         Subclasses should return a tuple of (row_indices, col_indices) for the 
@@ -227,7 +228,7 @@ class ODEProblem(ABC, metaclass=FinalChecker):
         """
         return None
     
-    def _compute_jacobian(self, t: float, state: np.ndarray) -> np.ndarray | csc_matrix:
+    def _compute_jacobian(self, t: float, state: np.ndarray) -> Union[np.ndarray, csc_matrix]:
         """
         Helper method that dispatches the Jacobian computation based on the selected scheme 
         and sparsity flag.
@@ -325,7 +326,7 @@ class ODEProblem(ABC, metaclass=FinalChecker):
 
         return Jacobian
     
-    def _compute_jacobian_forward_sparse(self, t: float, state: np.ndarray) -> np.ndarray | csc_matrix:
+    def _compute_jacobian_forward_sparse(self, t: float, state: np.ndarray) -> Union[np.ndarray, csc_matrix]:
         """
         Forward difference, sparse output (O(h) accuracy).
         """
@@ -354,7 +355,7 @@ class ODEProblem(ABC, metaclass=FinalChecker):
 
         return self._build_sparse_matrix_from_triplets(data_list, dim = n)
 
-    def _compute_jacobian_backward_sparse(self, t: float, state: np.ndarray) -> np.ndarray | csc_matrix:
+    def _compute_jacobian_backward_sparse(self, t: float, state: np.ndarray) -> Union[np.ndarray, csc_matrix]:
         """
         Backward difference, sparse output (O(h) accuracy).
         """
@@ -383,7 +384,7 @@ class ODEProblem(ABC, metaclass=FinalChecker):
 
         return self._build_sparse_matrix_from_triplets(data_list, dim = n)
 
-    def _compute_jacobian_central_sparse(self, t: float, state: np.ndarray) -> np.ndarray | csc_matrix:
+    def _compute_jacobian_central_sparse(self, t: float, state: np.ndarray) -> Union[np.ndarray, csc_matrix]:
         """
         Central difference, sparse output (O(h^2) accuracy).
         """
