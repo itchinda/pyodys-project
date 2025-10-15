@@ -17,11 +17,11 @@ D_u, D_v = 1e-3, 5e-3  # Diffusion coefficients
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
-def laplacian_1d(N: int, h: float) -> sp.csr_matrix:
+def laplacian_1d(N: int, h: float) -> sp.csc_matrix:
     """Construct 1D Laplacian with Dirichlet BC."""
     main_diag = -2.0 * np.ones(N)
     off_diag = np.ones(N - 1)
-    return diags([off_diag, main_diag, off_diag], [-1, 0, 1], format="csr") / (h**2)
+    return diags([off_diag, main_diag, off_diag], [-1, 0, 1], format="csc") / (h**2)
 
 
 # ---------------------------------------------------------------------------
@@ -49,8 +49,7 @@ class Schnakenberg1D(pod.ODEProblem):
             t_init,
             t_final,
             initial_state,
-            jacobian_is_constant=False,
-            mass_matrix_is_identity=True,
+            jacobian_is_constant=False
         )
 
     def evaluate_at(self, t: float, U: np.ndarray) -> np.ndarray:
@@ -72,15 +71,15 @@ class Schnakenberg1D(pod.ODEProblem):
             J[n:, n:] = D_v * self.L.toarray() + np.diag(-u**2)
             return J
         else:
-            R_uu = diags(-1 + 2 * u * v, 0, format="csr")
-            R_uv = diags(u**2, 0, format="csr")
-            R_vu = diags(-2 * u * v, 0, format="csr")
-            R_vv = diags(-u**2, 0, format="csr")
+            R_uu = diags(-1 + 2 * u * v, 0, format="csc")
+            R_uv = diags(u**2, 0, format="csc")
+            R_vu = diags(-2 * u * v, 0, format="csc")
+            R_vv = diags(-u**2, 0, format="csc")
             A11 = D_u * self.L + R_uu
             A12 = R_uv
             A21 = R_vu
             A22 = D_v * self.L + R_vv
-            return bmat([[A11, A12], [A21, A22]], format="csr")
+            return bmat([[A11, A12], [A21, A22]], format="csc")
 
 
 # ---------------------------------------------------------------------------
@@ -97,15 +96,15 @@ def schnakenberg_scipy(t, U, L, N):
 def schnakenberg_scipy_jac(t, U, L, N):
     u = U[:N]
     v = U[N:]
-    R_uu = diags(-1 + 2 * u * v, 0, format="csr")
-    R_uv = diags(u**2, 0, format="csr")
-    R_vu = diags(-2 * u * v, 0, format="csr")
-    R_vv = diags(-u**2, 0, format="csr")
+    R_uu = diags(-1 + 2 * u * v, 0, format="csc")
+    R_uv = diags(u**2, 0, format="csc")
+    R_vu = diags(-2 * u * v, 0, format="csc")
+    R_vv = diags(-u**2, 0, format="csc")
     A11 = D_u * L + R_uu
     A12 = R_uv
     A21 = R_vu
     A22 = D_v * L + R_vv
-    return bmat([[A11, A12], [A21, A22]], format="csr")
+    return bmat([[A11, A12], [A21, A22]], format="csc")
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +170,7 @@ for N in Ns:
     err_scipy  = np.linalg.norm(U_scipy - U_ref) / np.linalg.norm(U_ref)
 
     results.append((N, 2 * N, t_pyodys_sparse, t_scipy, err_pyodys, err_scipy))
+    print(f"N: {N}, 2N: {2 * N}, t_pyodys_sparse: {t_pyodys_sparse}, t_scipy: {t_scipy}, err_pyodys: {err_pyodys}, err_scipy: {err_scipy}")
 
 
 # ---------------------------------------------------------------------------

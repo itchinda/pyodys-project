@@ -40,7 +40,7 @@ class Heat1D(ODEProblem):
         self.force_dense = force_dense
         # initial: sin(pi x) on interior points
         u0 = np.sin(pi * self.x)
-        super().__init__(t0, tf, u0, jacobian_is_constant=True, mass_matrix_is_identity=True)
+        super().__init__(t0, tf, u0, jacobian_is_constant=True)
         # Precompute Laplacian operator (sparse)
         self.L = laplacian_1d(N, self.h)
 

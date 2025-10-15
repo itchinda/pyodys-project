@@ -16,7 +16,7 @@ def build_1d_laplacian(N: int, h: float, dtype=float) -> csr_matrix:
         diagonals=[off_diag, main_diag, off_diag],
         offsets=[-1, 0, 1],
         shape=(N, N),
-        format="csr",
+        format="csc",
         dtype=dtype
     )
     return L
@@ -36,7 +36,12 @@ class ParabolicProblem(ODEProblem):
         self.A = (1.0 / self.h ** 2) * self.L
         self.forcing_func = forcing_func
         self.initial_state = np.asarray(u0_function(self.x), dtype=float).reshape(N,)
-        super().__init__(t_init=t_init, t_final=t_final, initial_state=self.initial_state)
+        super().__init__(t_init=t_init, 
+                         t_final=t_final, 
+                         initial_state=self.initial_state,
+                         finite_difference_scheme="central",
+                         jacobian_is_sparse=True, 
+                         jacobian_is_constant=True)
 
     def evaluate_at(self, t: float, u: np.ndarray) -> np.ndarray:
         Au = self.A.dot(u)
@@ -56,7 +61,7 @@ def u0_func(x):
     return np.sin(np.pi * x)
 
 # ---------------- Parameters ----------------
-Nx = 10000
+Nx = 100000
 t0, tf = 0.0, 1.0
 L = 1.0
 
@@ -68,12 +73,10 @@ parabolic_problem = ParabolicProblem(N=Nx, t_init=t0, t_final=tf,
 pyodys_opts = {
     "method": "esdirk64",
     "adaptive" : True,
-    "fixed_step": 1e-5,
     "atol": 1e-8,
     "rtol": 1e-8,
     "min_step": 1e-10,
     "max_step": 5e-1,
-    "auto_check_sparsity": True,
     "verbose": True,
     "initial_step_safety": 1e-2
 }

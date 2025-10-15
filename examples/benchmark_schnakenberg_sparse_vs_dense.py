@@ -91,7 +91,7 @@ class Schnakenberg1D(ODEProblem):
         initial_state = np.hstack([U, V])
 
         self.L = laplacian_1d(N, self.h)
-        super().__init__(t_init, t_final, initial_state, jacobian_is_constant=False, mass_matrix_is_identity=True)
+        super().__init__(t_init, t_final, initial_state, jacobian_is_constant=False)
 
     def evaluate_at(self, t: float, U: np.ndarray) -> np.ndarray:
         u = U[:self.N]
@@ -159,21 +159,22 @@ for N in Ns:
     t_dense = time.perf_counter() - t0
     
     results.append((N, 2*N, t_dense, t_sparse))
+    print(f"N: {N}, 2N: {2*N}, t_dense: {t_dense}, t_sparse: {t_sparse}")
 
-# # Print LaTeX table
-# print("\\begin{table}[ht!]")
-# print("\\centering")
-# print("\\begin{tabular}{c|c|c|c}")
-# print("\\hline")
-# print("$N$ & Degrees of freedom ($2N$) & Dense solver & Sparse solver \\\\")
-# print("\\hline")
-# for N, dof, t_dense, t_sparse in results:
-#     print(f"{N} & {dof} & {t_dense:.3f} & {t_sparse:.3f} \\\\")
-# print("\\hline")
-# print("\\end{tabular}")
-# print("\\caption{CPU runtimes (in seconds) for the 1D Schnakenberg reaction--diffusion system solved with SDIRK(3,4). Comparison between dense and sparse Jacobian solvers.}")
-# print("\\label{tab:schnakenberg1d}")
-# print("\\end{table}")
+# Print LaTeX table
+print("\\begin{table}[ht!]")
+print("\\centering")
+print("\\begin{tabular}{c|c|c|c}")
+print("\\hline")
+print("$N$ & Degrees of freedom ($2N$) & Dense solver & Sparse solver \\\\")
+print("\\hline")
+for N, dof, t_dense, t_sparse in results:
+    print(f"{N} & {dof} & {t_dense:.3f} & {t_sparse:.3f} \\\\")
+print("\\hline")
+print("\\end{tabular}")
+print("\\caption{CPU runtimes (in seconds) for the 1D Schnakenberg reaction--diffusion system solved with SDIRK43. Comparison between dense and sparse Jacobian solvers.}")
+print("\\label{tab:schnakenberg1d}")
+print("\\end{table}")
 
 plt.figure(figsize=(8,6))
 

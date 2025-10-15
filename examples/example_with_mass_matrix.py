@@ -5,41 +5,47 @@ import matplotlib.pyplot as plt
 from pyodys import ODEProblem, PyodysSolver
 
 # Define coupled linear system
-class SystemeCouple(ODEProblem):
+class SystemeEDO(ODEProblem):
     def __init__(self, t_init, t_final, u_init):
         super().__init__(t_init, t_final, u_init)
-        self.jacobian_is_constant = True
-        self.mass_matrix_is_identity = False
         self.mass_matrix_is_constant = True
+        self.jacobian_is_constant =True
     
     def evaluate_at(self, t, u):
         x, y = u
-        return np.array([(-x + y), -y])
+        Ay = np.array([y, -x], dtype=float)
+        Ay_exact = np.array([np.cos(t), -np.sin(t),], dtype=float)
+        My_prime_exact = np.array([2*np.cos(t) - np.sin(t), np.cos(t) - 2*np.sin(t)], dtype=float)
+        ft = My_prime_exact - Ay_exact
+        return Ay + ft
     
     def _compute_mass_matrix(self, t, state):
-        return np.identity(2, dtype=float)
+        x,y=state
+        M = np.array([
+            [2, 1],
+            [1, 2]
+        ], dtype=float)
+        return M
 
 # Analytical solution
-def solution_analytique(t, u0):
-    tau = t - 0.0
-    x0, y0 = u0
-    x = np.exp(-tau) * (x0 + y0 * tau)
-    y = y0 * np.exp(-tau)
+def solution_analytique(t):
+    x = np.sin(t)
+    y = np.cos(t)
     return np.array([x, y])
 
 if __name__ == '__main__':
     # Initial conditions
     t_init = 0.0
-    t_final = 10.0
-    u_init = [1.0, 1.0]
-    systeme = SystemeCouple(t_init, t_final, u_init)
+    t_final = 2.0*np.pi
+    u_init = [0.0, 1.0]
+    systeme = SystemeEDO(t_init, t_final, u_init)
 
     # Using a SDIRK solver
     solver_sdirk = PyodysSolver(
-        method = "sdirk4",  
-        fixed_step=1e-3,                           
+        method = "sdirk43",
+        fixed_step=1e-3,                          
         first_step = None,
-        adaptive = True,
+        adaptive = False,
         atol = 1e-10,
         rtol = 1e-10,
         min_step = 1e-6,
@@ -50,7 +56,7 @@ if __name__ == '__main__':
     times, solutions = solver_sdirk.solve( systeme )
 
     # Compute analytical solution and errors
-    analytical_solutions = np.array([solution_analytique(t, u_init) for t in times])
+    analytical_solutions = np.array([solution_analytique(t) for t in times])
     error = np.linalg.norm(solutions - analytical_solutions, axis=1)
 
     # Plot solutions and errors

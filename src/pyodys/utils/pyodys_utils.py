@@ -1,6 +1,6 @@
 import numpy as np
 
-_DEFAULT_ZERO_TOL = 1e-14
+_DEFAULT_ZERO_TOL = 1e-15
 
 class PyodysError(RuntimeError):
     """Exception raised when PyOdys fails to solve a problem."""
@@ -54,10 +54,6 @@ def check_step_size(
             - float: New time step size.
             - bool: True if current step is accepted, False otherwise.
     """
-    alpha = 0.5
-    beta = 0.9
-    eps = 1e-12
-
     err = wrms_norm(U_approx - U_pred, U_approx, atol, rtol)
     step_accepted = err <= 1
     safety = 0.9

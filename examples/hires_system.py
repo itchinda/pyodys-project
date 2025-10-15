@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from pyodys import ODEProblem, PyodysSolver
+from pyodys import ODEProblem, PyodysSolver, extract_args
 
 
 # Define HIRES System
@@ -49,58 +49,19 @@ class HIRESModel(ODEProblem):
         return J
 
 
-def extract_args():
-    parser = argparse.ArgumentParser(description="Solve the Robertson System.")
-    parser.add_argument('--method', '-m', 
-                        type=str, 
-                        default='sdirk43',
-                        help='The Runge-Kutta method to use.')
-    parser.add_argument('--fixed-step', '-f', 
-                        type=float, 
-                        default=1e-4,
-                        help='The fixed step size used if npt adaptive stepping.')
-    parser.add_argument('--first-step', '-s', 
-                        type=float, 
-                        default=None,
-                        help='The initial time step size.')
-    parser.add_argument('--final-time', '-t', 
-                        type=float, 
-                        default=324,
-                        help='The final time for the simulation.')
-    parser.add_argument('--rtol', '-rt', 
-                        type=float,
-                        default=1e-8,
-                        help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--atol', '-at', 
-                        type=float,
-                        default=1e-8,
-                        help='The target absolute error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive', 
-                        action='store_false', 
-                        dest='adaptive',
-                        help='Disable adaptive time stepping.')
-    parser.add_argument('--min-step','-n', 
-                        type=float,
-                        default=1e-8,
-                        help='The minimum time step size for adaptive stepping.')
-    parser.add_argument('--max-step', '-x',
-                        type=float,
-                        default=10.0,
-                        help='The maximum time step size for adaptive stepping.')
-    parser.add_argument('--save-csv', 
-                        action='store_true', 
-                        help='Save the results to a CSV file.')
-    parser.add_argument('--save-png', 
-                        action='store_true', 
-                        help='Save the results to a png file.')
-    parser.add_argument('--verbose', '-v',
-                        action='store_true',
-                        help='Print progress info.')
-
-    return parser.parse_args()
-
 if __name__ == '__main__':
-    args = extract_args()
+
+    args = extract_args(
+        description = "Solve the HIRES System.",
+        method = 'esdirk64',
+        fixed_step = None,
+        first_step = None,
+        final_time = 324,
+        rtol = 1e-10,
+        atol = 1e-10,
+        min_step = 1e-8,
+        max_step = 324
+    )
 
     # Initial conditions (from Hairer & Wanner II, p. 5)
     t0 = 0.0

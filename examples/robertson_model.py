@@ -3,12 +3,11 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from pyodys import ODEProblem, PyodysSolver
+from pyodys import ODEProblem, PyodysSolver, extract_args
 
 # Define Robertson System
 class RobertsonModel(ODEProblem):
     def __init__(self, t_init, t_final, initial_state, k1=0.04, k2=3.0e7, k3=1.0e4):
-        # Call the parent constructor
         super().__init__(t_init, t_final, initial_state)
         # Specific Lorenz System Parameters
         self.k1 = k1
@@ -39,57 +38,20 @@ class RobertsonModel(ODEProblem):
 
         return jacobian_at
 
-def extract_args():
-    parser = argparse.ArgumentParser(description="Solve the Robertson System.")
-    parser.add_argument('--method', '-m', 
-                        type=str, 
-                        default='sdirk43',
-                        help='The Runge-Kutta method to use.')
-    parser.add_argument('--first-step', '-s', 
-                        type=float, 
-                        default=None,
-                        help='The initial time step size.')
-    parser.add_argument('--final-time', '-t', 
-                        type=float, 
-                        default=1.0e6,
-                        help='The final time for the simulation.')
-    parser.add_argument('--rtol', '-rt', 
-                        type=float,
-                        default=1e-8,
-                        help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--atol', '-at', 
-                        type=float,
-                        default=1e-8,
-                        help='The target absolute error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive', 
-                        action='store_false', 
-                        dest='adaptive',
-                        help='Enable adaptive time stepping.')
-    parser.add_argument('--min-step','-n', 
-                        type=float,
-                        default=1e-8,
-                        help='The minimum time step size for adaptive stepping.')
-    parser.add_argument('--max-step', '-x',
-                        type=float,
-                        default=1e5,
-                        help='The maximum time step size for adaptive stepping.')
-    parser.add_argument('--save-csv', 
-                        action='store_true', 
-                        help='Save the results to a CSV file.')
-    parser.add_argument('--save-png', 
-                        action='store_true', 
-                        help='Save the results to a png file.')
-    parser.add_argument('--verbose', '-v',
-                        action='store_true',
-                        help='Print progress info.')
-
-
-    return parser.parse_args()
-
 
 if __name__ == '__main__':
     
-    args = extract_args()
+    args = extract_args(
+        description="Solve the Robertson reaction system.",
+        method = 'esdirk64',
+        fixed_step = None,
+        first_step = None,
+        final_time = 1e6,
+        rtol = 1e-10,
+        atol = 1e-10,
+        min_step = 1e-8,
+        max_step = 1e5
+    )
 
     # Initial conditions
     t0 = 0.0
@@ -99,14 +61,14 @@ if __name__ == '__main__':
 
     # solver
     solver = PyodysSolver(
-                    method = args.method,
-                    first_step = args.first_step,
-                    adaptive = args.adaptive,
-                    rtol = args.rtol,
-                    atol = args.atol,
-                    min_step = args.min_step,
-                    max_step = args.max_step,
-                    verbose=args.verbose
+        method = args.method,
+        first_step = args.first_step,
+        adaptive = args.adaptive,
+        rtol = args.rtol,
+        atol = args.atol,
+        min_step = args.min_step,
+        max_step = args.max_step,
+        verbose=args.verbose
     )
 
 

@@ -3,7 +3,7 @@ from ..schemes.rk.RKScheme import RKScheme
 from .SolverBase import SolverBase
 from ..utils import pyodys_utils as utils
 import numpy as np
-from typing import Union
+from typing import Union, Callable
 from scipy.linalg import lu_factor, lu_solve, LinAlgError
 from scipy.sparse.linalg import splu
 from scipy.sparse import csc_matrix, isspmatrix
@@ -49,6 +49,10 @@ class RKSolver(SolverBase):
         Maximum Newton iterations per implicit stage.
     rtol, atol : float, default=1e-8
         Relative and absolute tolerances for adaptive step control.
+    linear_solver : Union[str, Callable], default 'lu', others available 'gmres', 'cg', 'svd'
+        Linear solver used for implicit schemes.
+    linear_solver_opts : dict, optional
+        Additional options for the linear solver.
     max_jacobian_refresh : int, default=1
         Max number of times to recompute/refactorize Jacobian within a step.
     verbose : bool, default=False
@@ -101,6 +105,8 @@ class RKSolver(SolverBase):
                  newton_nmax: int = 10,
                  rtol: float = 1e-8,
                  atol: float = 1e-8,
+                 linear_solver: Union[str, Callable] = "lu",
+                 linear_solver_opts:dict = None,
                  max_jacobian_refresh: int = 1,
                  verbose: bool = False,
                  progress_interval_in_time: int = None,
@@ -121,6 +127,8 @@ class RKSolver(SolverBase):
             newton_nmax = newton_nmax,
             rtol = rtol,
             atol = atol,
+            linear_solver=linear_solver,
+            linear_solver_opts = linear_solver_opts,
             max_jacobian_refresh = max_jacobian_refresh,
             verbose = verbose,
             progress_interval_in_time = progress_interval_in_time,
@@ -129,7 +137,7 @@ class RKSolver(SolverBase):
             auto_check_sparsity = auto_check_sparsity,
             sparse_threshold = sparse_threshold,
             sparsity_ratio_limit = sparsity_ratio_limit,
-            initial_step_safety=initial_step_safety)
+            initial_step_safety = initial_step_safety)
 
         # Resolve RK scheme
         if isinstance(method, str):
@@ -163,7 +171,7 @@ class RKSolver(SolverBase):
 
         self._error_estimator_order = self.butcher_tableau.embedded_order if self._with_prediction else self.butcher_tableau.order
 
-        if self.butcher_tableau.is_implicit:
+        if self.rk_scheme_is_irk:
             first_implicit_stage_idx = np.diag(self.butcher_tableau.A).nonzero()[0][0]
             self.gamma_sdirk  = self.butcher_tableau.A[first_implicit_stage_idx, first_implicit_stage_idx] # The diagonal entry
         else:
@@ -176,67 +184,191 @@ class RKSolver(SolverBase):
         self._work_U_newton = None
         self._nb_equations = None
 
-
     # -------------------------
     # Helper to create prefactored SDIRK solver for constant Jacobian
     # -------------------------
-    def _build_prefactored_sdirk_solver(self, delta_t):
-        """Build and store linear solver (sparse or dense) for SDIRK/ESDIRK when Jacobian is not constant."""
-        delta_t_x_gamma = delta_t * self.gamma_sdirk
-        if self._jacobian_is_sparse:
-            A_sparse = self._Id - delta_t_x_gamma * self._jacobianF
-            LU = splu(A_sparse)
-            self._linear_sparse_solver = LU.solve
-            return self._linear_sparse_solver
-        else:
-            assert(self._jacobianF is not None)
-            assert(self._Id is not None)
-            A_dense = self._Id - delta_t_x_gamma * self._jacobianF
-            LU_piv = lu_factor(A_dense)
-            self._linear_dense_solver = lambda rhs: lu_solve(LU_piv, rhs)
-            return self._linear_dense_solver
+    def _build_prefactored_dirk_solver(self, delta_t, akk):
+        """
+        Build a pre-factored linear solver for DIRK/SDIRK/ESDIRK schemes.
 
-    def _build_linear_solver_for_akk(self, delta_t_x_akk):
-        """Return a callable linear solver for given akk (delta_t * a[k,k])."""
-        if self._jacobian_is_sparse:
-            A_sparse = self._Id - delta_t_x_akk * self._jacobianF
-            LU = splu(A_sparse)
-            return LU.solve
+        The solver is reused across implicit stages if the Jacobian and mass matrix are constant.
+
+        Parameters
+        ----------
+        delta_t : float
+            Current time step size.
+        akk : float
+            Diagonal coefficient of the Butcher tableau for the current stage.
+
+        Returns
+        -------
+        solver : Callable
+            Function that solves `A x = rhs` for given `rhs`, using the pre-factored LU or sparse solver.
+        """
+
+        # Ensure matrices are in the expected format
+        if self._using_sparse_algebra:
+            if not isspmatrix(self._jacobianF):
+                self._jacobianF = csc_matrix(self._jacobianF)
+            if not self._mass_matrix_is_identity and not isspmatrix(self._mass_matrix):
+                self._mass_matrix = csc_matrix(self._mass_matrix)
         else:
-            A_dense = self._Id - delta_t_x_akk * self._jacobianF
-            LU_piv = lu_factor(A_dense)
-            return lambda rhs: lu_solve(LU_piv, rhs)
+            if isspmatrix(self._jacobianF):
+                self._jacobianF = self._jacobianF.toarray()
+            if not self._mass_matrix_is_identity and isspmatrix(self._mass_matrix):
+                self._mass_matrix = self._mass_matrix.toarray()
+
+        delta_t_x_gamma = delta_t * akk
+
+        # Build matrix for the linear solve
+        if self._mass_matrix_is_identity:
+            A = self._Id - delta_t_x_gamma * self._jacobianF
+        else:
+            A = self._mass_matrix - delta_t_x_gamma * self._jacobianF
+
+        if isinstance(self.linear_solver, str):
+            solver = self._build_linear_solver(A, self.linear_solver, **self.linear_solver_opts)
+        else:
+            solver = lambda rhs: np.asarray(self.linear_solver(A, rhs, **self.linear_solver_opts))
+
+        # Store for reuse
+        if self._using_sparse_algebra:
+            self._linear_sparse_solver = solver
+        else:
+            self._linear_dense_solver = solver
+
+        return solver
+
+    def _build_prefactored_erk_solver(self):
+        """
+        Build a linear solver for explicit RK stages with a non-identity mass matrix.
+
+        Only required for ERK schemes when mass matrix is not the identity.
+
+        Returns
+        -------
+        solver : Callable or None
+            Solver function for mass matrix solves, or None if mass matrix is identity.
+        """
+
+        if self._mass_matrix_is_identity:
+            return None  # explicit → no linear solve needed
+
+        # Ensure mass matrix format
+        if self._using_sparse_algebra and not isspmatrix(self._mass_matrix):
+            self._mass_matrix = csc_matrix(self._mass_matrix)
+        elif not self._using_sparse_algebra and isspmatrix(self._mass_matrix):
+            self._mass_matrix = self._mass_matrix.toarray()
+
+        A = self._mass_matrix
+
+        if isinstance(self.linear_solver, str):
+            solver = self._build_linear_solver(A, self.linear_solver, **self.linear_solver_opts)
+        else:
+            solver = lambda rhs: np.asarray(self.linear_solver(A, rhs **self.linear_solver_opts))
+
+        # Store for reuse
+        if self._using_sparse_algebra:
+            self._linear_sparse_solver = solver
+        else:
+            self._linear_dense_solver = solver
+
+        return solver
+                
+    def _perform_single_explicit_stage(self, k:int, F:ODEProblem, tn:float, delta_t:float, U_np:np.ndarray, U_n:np.ndarray,
+                                       U_pred:np.ndarray, U_chap:np.ndarray, deltat_x_value_f:np.ndarray, 
+                                       a:np.ndarray, b:np.ndarray, c:np.ndarray, d:np.ndarray):
+        """
+        Perform a single stage of an explicit RK scheme.
+
+        Parameters
+        ----------
+        k : int
+            Stage index.
+        F : ODEProblem
+            The ODE system.
+        tn : float
+            Current time.
+        delta_t : float
+            Time step size.
+        U_np : np.ndarray
+            Current solution u_n.
+        U_n : np.ndarray
+            Solution accumulator for u_{n+1}.
+        U_pred : np.ndarray
+            Prediction array for embedded solution (error estimator).
+        U_chap : np.ndarray
+            Stage solution storage.
+        deltat_x_value_f : np.ndarray
+            Stage derivatives storage (Δt * f evaluations).
+        a, b, c, d : np.ndarray
+            Butcher tableau coefficients.
+
+        Returns
+        -------
+        U_n : np.ndarray
+            Updated solution at the end of the stage.
+        U_pred : np.ndarray
+            Updated prediction for embedded solution.
+        """
+
+        tn_k = tn + c[k] * delta_t
+        if k == 0:
+            U_chap[:, k] = U_np
+        else:
+            U_chap[:, k] = U_np + deltat_x_value_f[:, :k] @ a[k, :k]
+        if self._mass_matrix_is_identity:
+            deltat_x_value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
+        else:
+            if self._mass_matrix_is_constant:
+                if self._using_sparse_algebra and self._linear_sparse_solver is None:
+                    self._linear_sparse_solver = self._build_prefactored_erk_solver()
+                elif not self._using_sparse_algebra and self._linear_dense_solver is None:
+                    self._linear_dense_solver = self._build_prefactored_erk_solver()
+            else:
+                # We must recompute the mass matrix!
+                self._compute_matrix("mass_matrix", F, tn_k, U_chap[:, k])
+                if self._using_sparse_algebra:
+                    self._linear_sparse_solver = self._build_prefactored_erk_solver()
+                else:
+                    self._linear_dense_solver = self._build_prefactored_erk_solver()
+            if self._using_sparse_algebra:
+                deltat_x_value_f[:, k] = delta_t * self._linear_sparse_solver(F.evaluate_at(tn_k, U_chap[:, k]))
+            else:
+                deltat_x_value_f[:, k] = delta_t * self._linear_dense_solver(F.evaluate_at(tn_k, U_chap[:, k]))
+        U_n += b[k] * deltat_x_value_f[:, k]
+        if self._with_prediction:
+            U_pred += d[k] * deltat_x_value_f[:, k]
+        return U_n, U_pred
 
     def _perform_single_rk_step(
             self, F: ODEProblem, tn: float, delta_t: float, U_np: np.ndarray
         ):
-        """Perform one Runge-Kutta step based on the Butcher tableau.
+        """
+        Perform one full Runge-Kutta step (all stages) for given time and step size.
 
-        Jacobian handling
-        -----------------
-            - If ``F.jacobian_is_constant = True``:
-              The Jacobian is computed once at initialization and reused for all
-              implicit stages and Newton iterations.
-        
-            - If ``F.jacobian_is_constant = False``:
-              The Jacobian is computed once at the start of this time step.
-              If Newton iterations fail to converge for an implicit stage, the
-              Jacobian is refreshed (up to ``max_jacobian_refresh`` times) and
-              the Newton iterations are retried.
-        
-        Args:
-            self: The instance of the RKSolver class.
-            F: The ODEProblem object representing the ODE system.
-            tn (float): The current time point, tn.
-            delta_t (float): The time step size, Δt.
-            U_np (numpy.ndarray): The state vector at the current time, u(tn).
+        Handles explicit or DIRK/SDIRK/ESDIRK schemes, including Newton iterations
+        for implicit stages and optional error estimation.
 
-        Returns:
-            tuple: A tuple containing:
-                - U_n_plus_1 (numpy.ndarray): The computed solution at the next time step, u(tn+1).
-                - U_pred (numpy.ndarray): An approximation of the solution used for error estimation in adaptive stepping. If the method doesn't support an embedded solution, this will be a zero array.
-                - newton_not_happy (bool): A flag that is True if Newton's method failed to converge for any of the implicit stages, and False otherwise.
-    
+        Parameters
+        ----------
+        F : ODEProblem
+            ODE system to integrate.
+        tn : float
+            Current time.
+        delta_t : float
+            Time step size.
+        U_np : np.ndarray
+            Current solution vector u_n.
+
+        Returns
+        -------
+        U_n_plus_1 : np.ndarray
+            Solution at the next time step.
+        U_pred : np.ndarray
+            Predicted solution for error estimation (embedded or Richardson extrapolation).
+        newton_not_happy : bool
+            True if Newton iteration failed for any implicit stage.
         """
 
         n_stages = self.butcher_tableau.n_stages
@@ -263,16 +395,7 @@ class RKSolver(SolverBase):
         # --- Explicit scheme → no Newton iterations
         if self.rk_scheme_is_erk:
             for k in range(n_stages):
-                tn_k = tn + c[k] * delta_t
-                if k == 0:
-                    U_chap[:, k] = U_np
-                else:
-                    U_chap[:, k] = U_np + deltat_x_value_f[:, :k] @ a[k, :k]
-
-                deltat_x_value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
-                U_n += b[k] * deltat_x_value_f[:, k]
-                if self._with_prediction:
-                    U_pred += d[k] * deltat_x_value_f[:, k]
+                U_n, U_pred = self._perform_single_explicit_stage(k, F, tn, delta_t, U_np, U_n, U_pred, U_chap, deltat_x_value_f, a, b, c, d)
             return U_n, U_pred, newton_not_happy
 
         # --- Implicit(DIRK-like) scheme → Newton iterations
@@ -282,24 +405,23 @@ class RKSolver(SolverBase):
 
         for refresh_attempt in range(self.max_jacobian_refresh + 1):
             # compute or reuse jacobian for this attempt
+            ###########################################################################333
             if not F.jacobian_is_constant:
-                Jf = F.jacobian_at(tn_k, U_n)
-                if self._jacobian_is_sparse:
-                    if isspmatrix(Jf):
-                        self._jacobianF = Jf.tocsc()
-                    else:
-                        self._jacobianF = csc_matrix(Jf)
-                else:
-                    self._jacobianF = np.asarray(Jf, dtype=float)
+                self._compute_matrix("jacobian", F, tn_k, U_n)
+            
+            if not (self._mass_matrix_is_identity and self._mass_matrix_is_constant):
+                self._compute_matrix("mass_matrix", F, tn_k, U_n)
 
             # if jacobian is constant AND scheme is sdirk/esdirk, we can use prefactored solver
-            if F.jacobian_is_constant and (self.rk_scheme_is_esdirk or self.rk_scheme_is_sdirk):
-                if self._jacobian_is_sparse:
+            if F.jacobian_is_constant and (F.mass_matrix_is_constant or F.mass_matrix_is_identity) and (self.rk_scheme_is_esdirk or self.rk_scheme_is_sdirk) :
+                if self._using_sparse_algebra:
                     solver_sdirk = self._linear_sparse_solver
                 else:
                     solver_sdirk = self._linear_dense_solver
             elif (self.rk_scheme_is_sdirk or self.rk_scheme_is_esdirk):
-                solver_sdirk = self._build_prefactored_sdirk_solver(delta_t)
+                solver_sdirk = self._build_prefactored_dirk_solver(delta_t, self.gamma_sdirk)
+            
+            ################################################################################
 
             newton_failed = False
             for k in range(n_stages):
@@ -308,44 +430,56 @@ class RKSolver(SolverBase):
                 else:
                     U_chap_k = U_np + deltat_x_value_f[:, :k] @ a[k, :k]
 
-                if a[k, k] == 0.0:  # No implicit coupling # USEFULL FOR ESDIRK SCHEMES!
-                    tn_k = tn + c[k] * delta_t
-                    U_chap[:, k] = U_chap_k
-                    deltat_x_value_f[:, k] = delta_t * F.evaluate_at(tn_k, U_chap[:, k])
-                    U_n += b[k] * deltat_x_value_f[:, k]
-                    if self._with_prediction:
-                        U_pred += d[k] * deltat_x_value_f[:, k]
+                if a[k, k] == 0.0:  # No implicit coupling # USEFULL FOR ESDIRK SCHEMES. 
+                    U_n, U_pred = self._perform_single_explicit_stage(k, F, tn, delta_t, U_np, U_n, U_pred, U_chap, deltat_x_value_f, a, b, c, d)
                     continue
 
                 # --- Implicit stage: Newton solve
                 tn_k = tn + c[k] * delta_t
                 delta_t_x_akk = delta_t * a[k, k]
                 U_newton[:] = U_chap_k
+                
+                ################################################# Uncomment this block if if you want to recompute the Jacobian every stage 
+                # if not F.jacobian_is_constant:
+                #     self._compute_matrix("jacobian", F, tn_k, U_n)
+
+                # if not (self._mass_matrix_is_identity and self._mass_matrix_is_constant):
+                #     self._compute_matrix("mass_matrix", F, tn_k, U_n)
+
+                # # if jacobian is constant AND scheme is sdirk/esdirk, we can use prefactored solver
+                # if F.jacobian_is_constant and (F.mass_matrix_is_constant or F.mass_matrix_is_identity) and (self.rk_scheme_is_esdirk or self.rk_scheme_is_sdirk) :
+                #     if self._using_sparse_algebra:
+                #         solver_sdirk = self._linear_sparse_solver
+                #     else:
+                #         solver_sdirk = self._linear_dense_solver
+                # elif (self.rk_scheme_is_sdirk or self.rk_scheme_is_esdirk):
+                #     solver_sdirk = self._build_prefactored_dirk_solver(delta_t, self.gamma_sdirk)
+                #######################################################################
 
                 if self.rk_scheme_is_esdirk or self.rk_scheme_is_sdirk:  # use the pre-factored solver
                     linear_solver = solver_sdirk
                 else:
-                    linear_solver = self._build_linear_solver_for_akk(delta_t_x_akk)
+                    linear_solver = self._build_prefactored_dirk_solver(delta_t, a[k, k])
 
                 # Newton loop
                 newton_succeeded = False
                 for iteration_newton in range(newton_nmax):
-                    # The original problem to solve is : Find K_k s.t. K_k - h* f(t_nk, u_chap_k + akk*K_k) = 0. We can set X = u_chap_k + akk*K_k to end with
-                    #                                               X - u_chap_k - h*akk*f(t_nk, X) = 0, X being the new unknown.
-                    if F.mass_matrix_is_identity:
-                        residu = U_newton - (U_chap_k + delta_t_x_akk * F.evaluate_at(tn_k, U_newton)) 
+                    # The original problem to solve is : Find K_k s.t. M K_k - f(t_nk, u_chap_k + h*akk*K_k) = 0. We can set X = u_chap_k + h*akk*K_k to end with
+                    #                                               M(X - u_chap_k) - h*akk*f(t_nk, X) = 0, X being the new unknown.
+                    if self._mass_matrix_is_identity:
+                        Mu_uchap = U_newton - U_chap_k
                     else:
-                        if F.mass_matrix_is_constant:
-                            residu = self._mass_matrix*(U_newton - U_chap_k) - delta_t_x_akk * F.evaluate_at(tn_k, U_newton) 
-                        else:
-                            residu = F.mass_matrix_at(tn_k, U_newton)*(U_newton - U_chap_k) - delta_t_x_akk * F.evaluate_at(tn_k, U_newton) 
+                        if not self._mass_matrix_is_constant:
+                            self._compute_matrix("mass_matrix", F, tn_k, U_newton )
+                        Mu_uchap = self._mass_matrix @ (U_newton - U_chap_k)
+
+                    residu = Mu_uchap - delta_t_x_akk * F.evaluate_at(tn_k, U_newton)
                     try:
                         delta = linear_solver(residu)
                     except (LinAlgError, RuntimeError, ValueError) as e:
                         super()._print_verbose(f"Linear solve failed at stage {k}: {e}")
                         newton_not_happy = True
                         return U_n, U_pred, newton_not_happy
-                    
                     U_newton -= delta
 
                     eta=1
@@ -358,8 +492,9 @@ class RKSolver(SolverBase):
                     break   # refresh jacobian and retry outer loop
 
                 # store stage result
+                delta_U = U_newton - U_chap_k
                 U_chap[:, k] = U_newton
-                deltat_x_value_f[:, k] = (U_newton - U_chap_k) / a[k,k] # = delta_t * F.evaluate_at(tn_k, U_newton). Be smart, avoid calling f again!!
+                deltat_x_value_f[:, k] = delta_U / a[k, k]   # equals h * K_k
                 U_n += b[k] * deltat_x_value_f[:, k]
                 if self._with_prediction:
                     U_pred += d[k] * deltat_x_value_f[:, k]
@@ -385,19 +520,46 @@ class RKSolver(SolverBase):
         Raises:
             PyodysError: If the solver encounters a fatal error, such as repeated Newton failures.
         """
-        if not ode_problem.mass_matrix_is_identity:
-            raise ValueError("Ptoblem with non identity mass matrix not currently supported.")
-
-        self._jacobian_is_sparse = None
+        
+        # Reinitialize optimization infos
         self._jacobianF = None
+        self._mass_matrix = None
         self._Id = None
-
-        if self.auto_check_sparsity and not self.rk_scheme_is_erk:
-            self._detect_sparsity_and_store_jacobian_if_constant(ode_problem, ode_problem.t_init, ode_problem.initial_state)
+        self._using_sparse_algebra = False
+        self._jacobian_is_constant = ode_problem.jacobian_is_constant
+        self._mass_matrix_is_constant = ode_problem.mass_matrix_is_constant
+        self._mass_matrix_is_identity = ode_problem.mass_matrix_is_identity
+        self._linear_sparse_solver = None
+        self._linear_dense_solver = None
 
         self._nb_equations = ode_problem.number_of_equations
         n_stages = self.butcher_tableau.n_stages
         n_eq = self._nb_equations
+
+        if self.auto_check_sparsity:
+            if self._mass_matrix_is_identity and not self.rk_scheme_is_erk:
+                self._detect_sparsity_and_store_jacobian_if_constant(ode_problem, ode_problem.t_init, ode_problem.initial_state)
+            elif not self._mass_matrix_is_identity and self.rk_scheme_is_erk:
+                self._detect_sparsity_and_store_mass_matrix_if_constant(ode_problem, ode_problem.t_init, ode_problem.initial_state)
+            elif not self._mass_matrix_is_identity and self.rk_scheme_is_dirk:
+                self._detect_global_sparsity(ode_problem, ode_problem.t_init, ode_problem.initial_state, h = (ode_problem.t_final - ode_problem.t_init)/100.0, a_ii = self.gamma_sdirk)
+
+        # Precompute identity for future use. Will probably be removed for optinmization. I don't actually need to store this.
+        if self._Id is None and self._mass_matrix_is_identity and self.rk_scheme_is_dirk:
+            if self._using_sparse_algebra:
+                from scipy.sparse import identity
+                self._Id = identity(n_eq, format="csc")
+            else:
+                self._Id = np.identity(n_eq, dtype=float)
+        
+        # Precompute constant jacobian for future use
+        if ode_problem.jacobian_is_constant and self.rk_scheme_is_irk and self._jacobianF is None:
+            self._compute_matrix("jacobian", ode_problem, ode_problem.t_init, ode_problem.initial_state)
+
+        # Precompute constant mass matrix for future use
+        if not self._mass_matrix_is_identity:
+            if self._mass_matrix_is_constant and self._mass_matrix is None:
+                self._compute_matrix("mass_matrix", ode_problem, ode_problem.t_init, ode_problem.initial_state)
 
         U_courant = np.copy(ode_problem.initial_state)
         self._work_U_chap = np.zeros((n_eq, n_stages))
@@ -405,20 +567,6 @@ class RKSolver(SolverBase):
         self._work_U_pred = np.empty_like(U_courant)
         self._work_U_n = np.empty_like(U_courant)
         self._work_U_newton = np.empty_like(U_courant)
-        
-        if not self._using_sparse_algebra and self._Id is None:
-            self._Id = np.identity(n_eq, dtype = float)
-
-        # Precompute constant jacobian for future use
-        if ode_problem.jacobian_is_constant and not self.rk_scheme_is_erk and self._jacobianF is None:
-            J = ode_problem.jacobian_at(ode_problem.t_init, ode_problem.initial_state)
-            if self._jacobian_is_sparse:
-                if isspmatrix(J):
-                    self._jacobianF = J.tocsc()
-                else:
-                    self._jacobianF = csc_matrix(J)
-            else:
-                self._jacobianF = np.asarray(J, dtype=float)
 
         #################### FIXED STEP SOLVE ##########################
         if not self.adaptive:
@@ -472,8 +620,8 @@ class RKSolver(SolverBase):
         while current_time < t_final and number_of_time_steps < nsteps_max:
             step_size = min(step_size, t_final - current_time)
 
-            if (self.rk_scheme_is_sdirk or self.rk_scheme_is_esdirk) and ode_problem.jacobian_is_constant: # and self.adaptive:
-                self._build_prefactored_sdirk_solver(step_size)
+            if (self._mass_matrix_is_constant or self._mass_matrix_is_identity) and (self.rk_scheme_is_sdirk or self.rk_scheme_is_esdirk) and ode_problem.jacobian_is_constant: # and self.adaptive:
+                self._build_prefactored_dirk_solver(step_size, self.gamma_sdirk)
 
             U_n_plus_1, U_pred, newton_not_happy = self._perform_single_rk_step(
                     ode_problem, current_time, step_size, U_courant
@@ -575,8 +723,34 @@ class RKSolver(SolverBase):
 
 
     def _perform_richardson_step(self, F: ODEProblem, tn: float, delta_t: float, U_np: np.ndarray, U_pred: np.ndarray):
-        """Performs Richardson extrapolation for schemes without embedded estimators."""
+        """
+        Perform Richardson extrapolation for schemes without embedded error estimators.
 
+        The method performs two half-steps and combines them for higher-order estimate.
+
+        Parameters
+        ----------
+        F : ODEProblem
+            ODE system to integrate.
+        tn : float
+            Current time.
+        delta_t : float
+            Step size.
+        U_np : np.ndarray
+            Current solution vector u_n.
+        U_pred : np.ndarray
+            Initial predicted solution (usually u_n).
+
+        Returns
+        -------
+        U_n_plus_1 : np.ndarray
+            Extrapolated solution at tn + delta_t.
+
+        Raises
+        ------
+        ValueError
+            If Newton iteration fails during any half-step.
+        """
         # First half-step
         U_half_step, _, newton_not_happy = \
             self._perform_single_rk_step(
@@ -597,16 +771,25 @@ class RKSolver(SolverBase):
 
 
     def _solve_with_fixed_step_size(self, ode_problem: ODEProblem):
-        """Solve an ODE system with a fixed time step.
-        Args:
-            ode_problem (ODEProblem): ODE system to integrate.
-            step_size (float): Fixed time step size.
-        Returns:
-            tuple:
-                - np.ndarray: Array of time points.
-                - np.ndarray: Array of corresponding states.
-        Raises:
-            PyodysError: If Newton iterations fail.
+        """
+        Solve ODE system with a fixed time step.
+
+        Parameters
+        ----------
+        ode_problem : ODEProblem
+            ODE system to integrate.
+
+        Returns
+        -------
+        times : np.ndarray
+            Array of time points.
+        solutions : np.ndarray
+            Array of solution vectors corresponding to each time point.
+
+        Raises
+        ------
+        PyodysError
+            If Newton iterations fail during implicit stages.
         """
         U_courant = np.copy(ode_problem.initial_state)
         current_time = ode_problem.t_init
@@ -628,7 +811,7 @@ class RKSolver(SolverBase):
         k = 0
 
         if (self.rk_scheme_is_sdirk or self.rk_scheme_is_esdirk) and ode_problem.jacobian_is_constant:
-            self._build_prefactored_sdirk_solver(self.fixed_step)
+            self._build_prefactored_dirk_solver(self.fixed_step, self.gamma_sdirk)
 
         for n in range(max_number_of_time_steps):
             U_n_plus_1, _, newton_not_happy = self._perform_single_rk_step(
@@ -664,7 +847,4 @@ class RKSolver(SolverBase):
             print(f"Simulation completed. The results have been saved to {self.export_prefix}*.csv")
             return None
 
-
         return np.array(times), np.array(solutions)
-
-    

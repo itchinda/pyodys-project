@@ -1,9 +1,8 @@
 import os
-import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from pyodys import ODEProblem, PyodysSolver
+from pyodys import ODEProblem, PyodysSolver, extract_args
 
 # Define Van-der-pol System
 class VanDerPol(ODEProblem):
@@ -35,61 +34,19 @@ class VanDerPol(ODEProblem):
 
         return jacobian_at
 
-def extract_args():
-    parser = argparse.ArgumentParser(description="Solve the Van-Der-Pol system.")
-    parser.add_argument('--method', '-m', 
-                        type=str, 
-                        default='esdirk64',
-                        help='The Runge-Kutta method to use.')
-    parser.add_argument('--fixed-step', '-f', 
-                        type=float, 
-                        default=None,
-                        help='The fixed step used if not adaptive stepping.')
-    parser.add_argument('--first-step', '-s', 
-                        type=float, 
-                        default=None,
-                        help='The initial time step size.')
-    parser.add_argument('--final-time', '-t', 
-                        type=float, 
-                        default=40.0,
-                        help='The final time for the simulation.')
-    parser.add_argument('--rtol', '-rt', 
-                        type=float,
-                        default=1e-8,
-                        help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--atol', '-at', 
-                        type=float,
-                        default=1e-8,
-                        help='The target absolute error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive', 
-                        action='store_false', 
-                        dest='adaptive',
-                        help='Enable adaptive time stepping.')
-    parser.add_argument('--min-step','-n', 
-                        type=float,
-                        default=1e-8,
-                        help='The minimum time step size for adaptive stepping.')
-    parser.add_argument('--max-step', '-x',
-                        type=float,
-                        default=1e4,
-                        help='The maximum time step size for adaptive stepping.')
-    parser.add_argument('--save-csv', 
-                        action='store_true', 
-                        help='Save the results to a CSV file.')
-    parser.add_argument('--save-png', 
-                        action='store_true', 
-                        help='Save the results to a png file.')
-    parser.add_argument('--verbose', '-v',
-                        action='store_true',
-                        help='Print progress info.')
-
-
-    return parser.parse_args()
-
-
 if __name__ == '__main__':
     
-    args = extract_args()
+    args = extract_args(
+        description = "Solve the Van der Pol System.",
+        method = 'esdirk64',
+        fixed_step = None,
+        first_step = None,
+        final_time = 40,
+        rtol = 1e-10,
+        atol = 1e-10,
+        min_step = 1e-8,
+        max_step = 100
+    )
 
     # Initial conditions
     t0 = 0.0
@@ -108,6 +65,7 @@ if __name__ == '__main__':
                     atol = args.atol,
                     min_step = args.min_step,
                     max_step = args.max_step,
+                    nsteps_max=100000,
                     verbose=args.verbose
     )
 

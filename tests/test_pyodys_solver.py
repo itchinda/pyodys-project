@@ -8,7 +8,7 @@ import pyodys.utils.pyodys_utils as utils
 class ExponentialDecay(ODEProblem):
     """u'(t) = -u, solution u(t) = exp(-t)."""
     def __init__(self, u0=1.0, t_init=0.0, t_final=1.0):
-        super().__init__(t_init, t_final, [u0], mass_matrix_is_identity=True)
+        super().__init__(t_init, t_final, [u0])
 
     def evaluate_at(self, t, u):
         return -u
@@ -47,7 +47,7 @@ def test_pyodys_solver_adaptive_runs(method_name):
 # --- Nonlinear problem to trigger Newton failure ---
 class NonlinearProblem(ODEProblem):
     def __init__(self):
-        super().__init__(0.0, 1.0, np.array([1.0]), mass_matrix_is_identity=True)
+        super().__init__(0.0, 1.0, np.array([1.0]))
 
     def evaluate_at(self, t, u):
         return np.array([np.sin(u[0]) + 10.0])

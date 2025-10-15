@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from scipy.sparse import csc_matrix, identity, isspmatrix
+from scipy.sparse.linalg import gmres, cg
 import csv
 import os
 import warnings
+from typing import Union, Callable
 
 from ..ode.ODEProblem import ODEProblem
 from ..utils import pyodys_utils as utils
@@ -48,6 +50,10 @@ class SolverBase(ABC):
     atol : float, default 1e-8
         The absolute tolerance for adaptive error control. Required for
         adaptive solvers.
+    linear_solver : Union[str, Callable], default 'lu'
+        Linear solver used for implicit schemes.
+    linear_solver_opts : dict, optional
+        Additional options for the linear solver.
     max_jacobian_refresh : int, default 1
         Maximum number of times to re-evaluate the Jacobian for implicit
         solvers.
@@ -82,6 +88,8 @@ class SolverBase(ABC):
                  newton_nmax: int = 10,
                  rtol: float = 1e-8,
                  atol: float = 1e-8,
+                 linear_solver: Union[str, Callable] = "lu",
+                 linear_solver_opts:dict = None,
                  max_jacobian_refresh: int = 1,
                  verbose: bool = False,
                  progress_interval_in_time: int = None,
@@ -111,6 +119,8 @@ class SolverBase(ABC):
         self.nsteps_max = nsteps_max
         self.rtol = rtol
         self.atol = atol
+        self.linear_solver = linear_solver
+        self.linear_solver_opts = linear_solver_opts or {}
         self.max_jacobian_refresh = max_jacobian_refresh
         self.verbose = verbose
         self.progress_interval_in_time = progress_interval_in_time
@@ -126,10 +136,10 @@ class SolverBase(ABC):
 
         self._export_counter = 0
         self._sparsity_checked = False
-        self._jacobian_is_sparse = False
         self._jacobian_is_constant = False
         self._mass_matrix_is_sparse = False
         self._mass_matrix_is_constant = False
+        self._mass_matrix_is_identity = False
         self._using_sparse_algebra = False
 
         self._Id = None
@@ -179,7 +189,7 @@ class SolverBase(ABC):
                 writer.writerow(row)
         self._print_verbose(f"Exported {len(times)} steps to {filename}")
 
-    def _classify_matrix(self, A, name: str, n_eq: int, auto_check: bool, sparsity_ratio_limit: float, force_sparse: bool = False):
+    def _classify_matrix(self, A, name: str, n_eq: int, auto_check: bool, sparsity_ratio_limit: float, force_sparse: bool = False, use_sparse_if_sparse_provided = True):
         """
         Convert a matrix to sparse/dense and decide algebra mode.
 
@@ -210,7 +220,10 @@ class SolverBase(ABC):
         if isspmatrix(A):
             A_csc = A.tocsc()
             density = A_csc.nnz / (n_eq * n_eq)
-            return (A_csc, True, density)
+            if use_sparse_if_sparse_provided:
+                return (A_csc, True, density)
+            else:
+                return (A_csc, density<self.sparsity_ratio_limit, density)
 
         # Dense input
         A = np.asarray(A, dtype=float)
@@ -245,31 +258,56 @@ class SolverBase(ABC):
         J = F.jacobian_at(tn, U_np)
         n_eq = F.number_of_equations
 
-        J_proc, is_sparse, density = self._classify_matrix(
+        J_proc, self._using_sparse_algebra, density = self._classify_matrix(
             J, "Jacobian", n_eq, auto_check=self.auto_check_sparsity,
             sparsity_ratio_limit=self.sparsity_ratio_limit
         )
 
         if F.jacobian_is_constant:
             self._jacobianF = J_proc
-            self._jacobian_is_constant = True
-        else:
-            self._jacobian_is_constant = False
 
-        self._jacobian_is_sparse = is_sparse
-        self._using_sparse_algebra = is_sparse
-        if is_sparse:
+        if self._using_sparse_algebra:
             self._Id = identity(n_eq, format="csc")
-            
         else:
             self._Id = np.eye(n_eq)
 
         if self.verbose:
-            self._print_verbose(f"Jacobian detected: sparse={is_sparse}, density={density:.3e}")
+            self._print_verbose(f"Jacobian detected: sparse={self._using_sparse_algebra}, density={density:.3e}")
 
         if self._jacobian_is_constant and self.verbose:
             self._print_verbose("Jacobian marked as constant → will be reused across all steps.")
 
+    def _detect_sparsity_and_store_mass_matrix_if_constant(self, F: ODEProblem, tn: float, U_np: np.ndarray):
+        """
+        Detect whether the Mass Matrix provided by F is sparse or dense.
+        Initialize identity matrices accordingly.
+        If the Mass Matrix is constant, store it once for reuse.
+
+        Parameters
+        ----------
+        F : ODEProblem
+            The ODEProblem object, which must provide a `jacobian_at(t, u)` method.
+        tn : float
+            The current time.
+        U_np : np.ndarray
+            The current state vector.
+        """
+        M = F.mass_matrix_at(tn, U_np)
+        n_eq = F.number_of_equations
+
+        M_proc, self._using_sparse_algebra, density = self._classify_matrix(
+            M, "Mass Matrix", n_eq, auto_check=self.auto_check_sparsity,
+            sparsity_ratio_limit=self.sparsity_ratio_limit
+        )
+
+        if F.mass_matrix_is_constant:
+            self._mass_matrix = M_proc
+
+        if self.verbose:
+            self._print_verbose(f"Mass Matrix detected: sparse={self._using_sparse_algebra}, density={density:.3e}")
+
+        if F.mass_matrix_is_constant and self.verbose:
+            self._print_verbose("Mass Matrix marked as constant → will be reused across all steps.")
 
     def _detect_global_sparsity(self, F: ODEProblem, tn: float, U_np: np.ndarray, h: float, a_ii: float):
         """
@@ -298,32 +336,55 @@ class SolverBase(ABC):
         M_sparse = M if isspmatrix(M) else csc_matrix(M)
 
         A = M_sparse - h * a_ii * J_sparse
-        _, is_sparse, density = self._classify_matrix(
-            A, "Global system matrix", n_eq, auto_check=True,
-            sparsity_ratio_limit=self.sparsity_ratio_limit
+        _, self._using_sparse_algebra, density = self._classify_matrix(
+            A, "Global system matrix", n_eq, auto_check=self.auto_check_sparsity,
+            sparsity_ratio_limit=self.sparsity_ratio_limit, use_sparse_if_sparse_provided=False
         )
-        self._using_sparse_algebra = is_sparse
 
-        if is_sparse:
-            self._Id = identity(n_eq, format="csc")
-        else:
-            self._Id = np.eye(n_eq)
+        if F.mass_matrix_is_identity:
+            self._mass_matrix_is_identity = True
+            if self._using_sparse_algebra:
+                self._Id = identity(n_eq, format="csc")
+            else:
+                self._Id = np.eye(n_eq)
 
         if F.jacobian_is_constant:
-            self._jacobianF = J_sparse if is_sparse else J_sparse.toarray()
+            self._jacobianF = J_sparse if self._using_sparse_algebra else J_sparse.toarray()
             self._jacobian_is_constant = True
         else:
             self._jacobian_is_constant = False
 
         if F.mass_matrix_is_constant:
-            self._mass_matrix = M_sparse if is_sparse else M_sparse.toarray()
+            self._mass_matrix = M_sparse if self._using_sparse_algebra else M_sparse.toarray()
             self._mass_matrix_is_constant = True 
         else:
             self._mass_matrix_is_constant = False
 
         if self.verbose:
-            mode = "SPARSE" if is_sparse else "DENSE"
+            mode = "SPARSE" if self._using_sparse_algebra else "DENSE"
             self._print_verbose(f"Global sparsity check: USING {mode} ALGEBRA, density={density:.3e}")
+
+    def _compute_matrix(self, type:str, F:ODEProblem, t:float, U:np.ndarray):
+        if type == "jacobian":
+            Jf = F.jacobian_at(t, U)
+            if self._using_sparse_algebra:
+                if isspmatrix(Jf):
+                    self._jacobianF = Jf.tocsc()
+                else:
+                    self._jacobianF = csc_matrix(Jf)
+            else:
+                self._jacobianF = np.asarray(Jf, dtype=float)
+        elif type == "mass_matrix":
+            M = F.mass_matrix_at(t, U)
+            if self._using_sparse_algebra:
+                if isspmatrix(M):
+                    self._mass_matrix = M.tocsc()
+                else:
+                    self._mass_matrix = csc_matrix(M)
+            else:
+                self._mass_matrix = np.asarray(M, dtype=float)
+        else:
+            raise ValueError("`type` should be either `jacobian` or `mass_matrix`.")
 
     def _mass_matrix_jacobian_contract_d(self, ode_problem: ODEProblem, t: float, y: np.ndarray, d: np.ndarray, eps=None, central=True):
         """
@@ -439,5 +500,75 @@ class SolverBase(ABC):
             ode_problem (ODEProblem): The ODE problem to solve.
         """
         raise NotImplementedError("Any subclass must implement this method.")
+    
+    def _build_linear_solver(self, A: np.ndarray, solver_name: str = "lu", **kwargs):
+        """
+        Build a linear solver callable for the given matrix A.
+        Automatically chooses sparse or dense solver based on self._using_sparse_algebra.
 
+        Parameters
+        ----------
+        A : ndarray or sparse matrix
+            The system matrix to solve.
+        solver_name : str
+            Solver type: "lu", "cg", "gmres", "svd".
+        kwargs : dict
+            Extra solver-specific arguments (e.g., tol, restart).
 
+        Returns
+        -------
+        solver : callable
+            Callable `solver(rhs)` returning a 1D NumPy array.
+        """
+
+        solver_name = solver_name.lower()
+
+        n = A.shape[0]
+        # user-level defaults stored on the solver (set at init)
+        defaults = {
+            "lu": {},
+            "cg": {"atol": 1e-10, "rtol": 1e-8, "maxiter": None},
+            "gmres": {"atol": 1e-10, "rtol": 1e-8, "restart": min(n, 50), "maxiter": None},
+            "svd": {"full_matrices": False},
+        }
+        opts = {**defaults.get(solver_name, {}), **kwargs}
+
+        # --- LU solver ---
+        if solver_name == "lu":
+            if self._using_sparse_algebra:
+                from scipy.sparse.linalg import splu
+                LU = splu(A)
+                return lambda rhs: LU.solve(rhs, **opts) #.ravel()
+            else:
+                from scipy.linalg import lu_factor, lu_solve
+                LU_piv = lu_factor(A)
+                return lambda rhs: lu_solve(LU_piv, rhs, **opts)
+
+        # --- Conjugate Gradient ---
+        elif solver_name == "cg":
+            from scipy.sparse.linalg import cg
+            return lambda rhs: cg(A, rhs, **opts)[0]
+
+        # --- GMRES ---
+        elif solver_name == "gmres":
+            from scipy.sparse.linalg import gmres
+            def gmres_solver(rhs):
+                x, info = gmres(A, rhs, **opts)
+                if info != 0:
+                    raise RuntimeError(f"GMRES did not converge. Info={info}")
+                return x
+            return gmres_solver
+
+        # --- SVD (dense only) ---
+        elif solver_name == "svd":
+            if self._using_sparse_algebra:
+                raise NotImplementedError("SVD solver not implemented for sparse matrices")
+            import numpy.linalg as la
+            U, s, Vh = np.linalg.svd(A, full_matrices=False)
+            s_inv = np.diag(1.0 / s)
+            def svd_solver(rhs):
+                return (Vh.T @ (s_inv @ (U.T @ rhs))) #.ravel()
+            return svd_solver
+
+        else:
+            raise ValueError(f"Unknown linear solver '{solver_name}'. Choose from 'lu', 'cg', 'gmres', 'svd'.")

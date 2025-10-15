@@ -5,7 +5,7 @@ from ..schemes.rk.RKScheme import RKScheme
 from ..ode.ODEProblem import ODEProblem
 from ..utils.pyodys_utils import PyodysError
 
-from typing import Union
+from typing import Union, Callable
 
 
 class PyodysSolver(object):
@@ -21,7 +21,7 @@ class PyodysSolver(object):
     ----------
     method : Union[str, RKScheme, BDFScheme]
         The numerical scheme to use. It can be a string name of a predefined
-        scheme (e.g., 'dopri5', 'erk4', 'sdirk2', 'bdf1', 'bdf2'), or a custom
+        scheme (e.g., 'dopri54', 'erk4', 'sdirk2', 'sdirk21', 'dirk64', 'esdirk64', 'bdf1', 'bdf2'), or a custom
         `RKScheme` or `BDFScheme` object.
     fixed_step : float, optional
         The fixed step size for non-adaptive solvers. Required if `adaptive` is False.
@@ -42,6 +42,10 @@ class PyodysSolver(object):
         Relative tolerance for adaptive step-size control.
     atol : float, default 1e-8
         Absolute tolerance for adaptive step-size control.
+    linear_solver : Union[str, Callable], default 'lu'
+        Linear solver used for implicit schemes.
+    linear_solver_opts : dict, optional
+        Additional options for the linear solver.
     max_jacobian_refresh : int, default 1
         Maximum number of times to re-evaluate the Jacobian per step in implicit solvers.
     verbose : bool, default False
@@ -88,6 +92,8 @@ class PyodysSolver(object):
                  newton_nmax: int = 10,
                  rtol: float = 1e-8,
                  atol: float = 1e-8,
+                 linear_solver : Union[str, Callable] = "lu",
+                 linear_solver_opts : dict = None,
                  max_jacobian_refresh: int = 1,
                  verbose: bool = False,
                  progress_interval_in_time: int = None,
@@ -102,7 +108,7 @@ class PyodysSolver(object):
         if isinstance(method, str):
             rk_schemes = RKScheme.available_schemes()
             bdf_schemes= BDFScheme.available_schemes()
-            available = "\n".join(rk_schemes) + "\n".join(bdf_schemes)
+            available = "\n".join(rk_schemes) + "\n" + "\n".join(bdf_schemes)
             if method in rk_schemes:
                 self._solver_cls = RKSolver
             elif method in bdf_schemes:
@@ -130,6 +136,8 @@ class PyodysSolver(object):
             newton_nmax=newton_nmax,
             rtol=rtol,
             atol=atol,
+            linear_solver=linear_solver,
+            linear_solver_opts = linear_solver_opts,
             max_jacobian_refresh=max_jacobian_refresh,
             verbose=verbose,
             progress_interval_in_time=progress_interval_in_time,

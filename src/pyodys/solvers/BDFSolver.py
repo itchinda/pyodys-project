@@ -3,7 +3,7 @@ from ..schemes.bdf.BDFScheme import BDFScheme
 from .SolverBase import SolverBase
 from ..utils import pyodys_utils as utils
 import numpy as np
-from typing import Union
+from typing import Union, Callable
 from scipy.linalg import lu_factor, lu_solve, LinAlgError
 from scipy.sparse.linalg import splu
 from scipy.sparse import csc_matrix, isspmatrix
@@ -101,6 +101,8 @@ class BDFSolver(SolverBase):
                  newton_nmax: int = 10,
                  rtol: float = 1e-8,
                  atol: float = 1e-8,
+                 linear_solver: Union[str, Callable] = "lu",
+                 linear_solver_opts:dict = None,
                  max_jacobian_refresh: int = 1,
                  verbose: bool = False,
                  progress_interval_in_time: int = None,
@@ -111,7 +113,6 @@ class BDFSolver(SolverBase):
                  sparsity_ratio_limit: float = 0.2,
                  initial_step_safety = 1e-4):
         """Initialize a BDF solver. """
-
     
         raise utils.PyodysError("The BDF solver is not yet implemented. Consider using a Runge-Kutta scheme.")
 
@@ -125,6 +126,8 @@ class BDFSolver(SolverBase):
             newton_nmax = newton_nmax,
             rtol = rtol,
             atol = atol,
+            linear_solver=linear_solver,
+            linear_solver_opts = linear_solver_opts,
             max_jacobian_refresh = max_jacobian_refresh,
             verbose = verbose,
             progress_interval_in_time = progress_interval_in_time,
@@ -166,4 +169,4 @@ class BDFSolver(SolverBase):
         self._nb_equations = None
 
     def solve(self, ode_problem : ODEProblem):
-        pass
+        raise utils.PyodysError("The BDF solver is not yet implemented. Consider using a Runge-Kutta scheme.")

@@ -335,6 +335,32 @@ def _get_esdirk6():
     C = [c1,c2,c3,c4,c5,c6,c7]
     return {"A": A, "B": B, "C": C, "order": 6, "embedded_order": 4, "a_stable": True}
 
+
+def _get_dirk65():
+    N_STAGES = 8
+    a = [[0.0]*N_STAGES for _ in range(N_STAGES)]
+    a[0][0] = 4.772644573858262e-01
+    a[1][0] =-1.970525884150017e-01; a[1][1] = 4.763634284595835e-01
+    a[2][0] =-3.476744303729656e-02; a[2][1] = 6.330518073354831e-01; a[2][2] = 1.936343100750279e-01
+    a[3][0] = 9.677976685787021e-02; a[3][1] =-1.935335264665350e-01; a[3][2] =-2.076229458004729e-04; a[3][3] = 1.595722048494314e-01
+    a[4][0] = 1.625272318198749e-01; a[4][1] =-2.496725135473825e-01; a[4][2] =-4.590799720417948e-02; a[4][3] = 3.657947640085904e-01; a[4][4] = 2.557528383076989e-01
+    a[5][0] =-7.076031971712624e-03; a[5][1] = 8.462998548602952e-01; a[5][2] = 3.440200169250181e-01; a[5][3] =-7.209260545488652e-02; a[5][4] =-2.154923319808753e-01; a[5][5] = 1.043410976221611e-01
+    a[6][0] = 1.768579351797444e-03; a[6][1] = 7.799600131275149e-02; a[6][2] = 3.033332775645574e-01; a[6][3] = 2.131608067328356e-01; a[6][4] = 3.517693203190381e-01; a[6][5] = -3.815458943865381e-01; a[6][6] = 4.335179091055582e-01
+    a[7][0] = b1 = bh1 = 0.000000000000000e+00; a[7][1] = b2 = bh2 = 2.273235341055902e-01; a[7][2] = b3 = bh3 = 3.084158379801177e-01; a[7][3] = b4 = bh4 = 1.572634195730069e-01
+    a[7][4] = b5 = bh5 = 2.435511371522748e-01; a[7][5] = b6 = -1.209536267328315e-01; a[7][6] = b7 = -8.026784733998993e-02; a[7][7] = b8 = 2.646675452618318e-01
+    bh6 = -1.034839432227653e-01; bh7 = -1.037217716422620e-02; bh8 = 1.773021915760011e-01
+
+    b = [b1,b2,b3,b4,b5,b6,b7,b8]
+    bh= [bh1,bh2,bh3,bh4,bh5,bh6,bh7,bh8]
+    B = [b,bh]
+    #C = [np.sum(np.array(row, dtype=float) for row in a)]
+    C = [np.sum(row) for row in a]
+    order = 6
+    embedded_order = 5
+    l_stable = True
+    a_stable = True
+    return {"A": a, "B": B, "C": C, "order": order, "embedded_order": embedded_order, "a_stable": a_stable, "l_stable": l_stable}
+
 def available_butcher_table_data_to_json():
     """
     Collects data from all scheme functions and generates a single JSON file.
@@ -356,7 +382,8 @@ def available_butcher_table_data_to_json():
         "sdirk32": _get_sdirk_norsett_thomson_23(),
         "sdirk43": _get_sdirk_norsett_thomson_34(),
         "sdirk54": _get_sdirk_hairer_norsett_wanner_45(),
-        "esdirk64": _get_esdirk6()
+        "esdirk64": _get_esdirk6(),
+        "dirk65": _get_dirk65()
     }
 
     script_dir = os.path.dirname(os.path.abspath(__file__))

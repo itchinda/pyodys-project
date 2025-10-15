@@ -1,7 +1,7 @@
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from pyodys import ODEProblem, PyodysSolver
+from pyodys import ODEProblem, PyodysSolver, extract_args
 
 # Define Lorenz System
 class LorenzSystem(ODEProblem):
@@ -31,60 +31,19 @@ class LorenzSystem(ODEProblem):
         ])
         return jacobian_at
 
-def extract_args():
-    parser = argparse.ArgumentParser(description="Solve the Robertson System.")
-    parser.add_argument('--method', '-m', 
-                        type=str, 
-                        default='dopri54',
-                        help='The Runge-Kutta method to use.')
-    parser.add_argument('--fixed-step', '-s', 
-                        type=float, 
-                        default=None,
-                        help='The fixed step size. Must be provided for non adaptive stepping.')
-    parser.add_argument('--first-step', '-f', 
-                        type=float, 
-                        default=1e-8,
-                        help='The initial time step size.')
-    parser.add_argument('--final-time', '-t', 
-                        type=float, 
-                        default=50.0,
-                        help='The final time for the simulation.')
-    parser.add_argument('--rtol', '-rt', 
-                        type=float,
-                        default=1e-10,
-                        help='The target relative error for adaptive time stepping.')
-    parser.add_argument('--atol', '-at', 
-                        type=float,
-                        default=1e-10,
-                        help='The target absolute error for adaptive time stepping.')
-    parser.add_argument('--no-adaptive', 
-                        action='store_false', 
-                        dest='adaptive',
-                        help='Disable adaptive time stepping.')
-    parser.add_argument('--min-step','-n', 
-                        type=float,
-                        default=1e-10,
-                        help='The minimum time step size for adaptive stepping.')
-    parser.add_argument('--max-step', '-x',
-                        type=float,
-                        default=1e-2,
-                        help='The maximum time step size for adaptive stepping.')
-    parser.add_argument('--save-csv', 
-                        action='store_true', 
-                        help='Save the results to a CSV file.')
-    parser.add_argument('--save-png', 
-                        action='store_true', 
-                        help='Save the results to a png file.')
-    parser.add_argument('--verbose', '-v',
-                        action='store_true',
-                        help='Print progress info.')
-
-
-    return parser.parse_args()
-
 if __name__ == '__main__':
 
-    args = extract_args()
+    args = args = extract_args(
+        description = "Solve the Lorenz System.",
+        method = 'dopri54',
+        fixed_step = None,
+        first_step = None,
+        final_time = 50,
+        rtol = 1e-10,
+        atol = 1e-10,
+        min_step = 1e-8,
+        max_step = 1e-2
+    )
 
     # Initial conditions
     t0 = 0.0
