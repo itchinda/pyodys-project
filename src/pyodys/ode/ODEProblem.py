@@ -220,7 +220,7 @@ class ODEProblem(ABC, metaclass=FinalChecker):
         else:
             return self._compute_jacobian(t, state)
 
-    def _get_jacobian_sparsity_pattern(self) -> Optional[tuple[np.ndarray, np.ndarray]]:
+    def _get_jacobian_sparsity_pattern(self) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """
         Optional helper method to return the structural non-zero pattern of the Jacobian.
         Subclasses should return a tuple of (row_indices, col_indices) for the 
