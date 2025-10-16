@@ -27,21 +27,21 @@ class SolverBase(ABC):
     fixed_step : float, optional
         The fixed step size to use for non-adaptive solvers.
         Required if `adaptive` is False.
-    adaptive : bool, default False
+    adaptive : bool, default True
         Whether to use an adaptive time-stepping algorithm.
-        If True, `min_step`, `max_step`, `rtol`, and `atol` must be provided.
     first_step : float, optional
         The initial step size to use for adaptive solvers. If not
         provided, a safe initial step is estimated.
-    min_step : float, optional
+    min_step : float, optional, default None
         The minimum allowed step size for adaptive solvers.
-        Required if `adaptive` is True.
-    max_step : float, optional
+        If None, Pyodys automatically estimate its value based on the problem.
+    max_step : float, optional, default None
         The maximum allowed step size for adaptive solvers.
-        Required if `adaptive` is True.
-    nsteps_max : int, default 1000000
+        If None, Pyodys automatically set its value equal to the size time span.
+    nsteps_max : int, default None
         Maximum number of steps allowed. The solver will terminate if this
         limit is reached.
+        If None, Pyodys automatically set its value based on the time span and, the available memory.
     newton_nmax : int, default 10
         Maximum number of Newton iterations for implicit solvers.
     rtol : float, default 1e-8
@@ -80,7 +80,7 @@ class SolverBase(ABC):
     """
     def __init__(self,
                  fixed_step: float = None,
-                 adaptive: bool = False,
+                 adaptive: bool = True,
                  first_step: float = None,
                  min_step: float = None, 
                  max_step: float = None,
@@ -100,16 +100,8 @@ class SolverBase(ABC):
                  sparsity_ratio_limit: float = 0.2,
                  initial_step_safety = 1e-4):
                     
-        if adaptive and (min_step==None or max_step==None):
-            raise TypeError("Since you choose adaptive time stepping, you must specify the minimal and maximal time steps.")
-        if adaptive:
-            if rtol == None:
-                raise TypeError("Since you choose adaptive time stepping, you must specify the the target relative error.")
-            if atol == None:
-                raise TypeError("Since you choose adaptive time stepping, you must specify the the target relative error.")
-        else:
-            if fixed_step is None:
-                raise ValueError("Since you choose not to use adaptive stepping, you must provide a value for the fixed step size.")
+        if not adaptive and fixed_step is None:
+            raise ValueError("Since you choose not to use adaptive stepping, you must provide a value for the fixed step size.")
         
         self.fixed_step = fixed_step
         self.first_step = first_step
@@ -572,3 +564,66 @@ class SolverBase(ABC):
 
         else:
             raise ValueError(f"Unknown linear solver '{solver_name}'. Choose from 'lu', 'cg', 'gmres', 'svd'.")
+
+
+    # ------------------------------------------------------------------
+    # Internal helper: automatic scaling of max number of adaptive steps
+    # ------------------------------------------------------------------
+    def _auto_nsteps_max(self, ode_problem: ODEProblem) -> int:
+        """
+        Automatically estimate a safe upper bound for the maximum number
+        of adaptive steps based on system size, time span, and memory.
+        """
+
+        try:
+            N = len(ode_problem.initial_state)
+        except Exception:
+            N = 1
+
+        try:
+            t_span = abs(ode_problem.t_final - ode_problem.t_init)
+        except Exception:
+            t_span = 1.0
+        from psutil import virtual_memory
+        mem_available = virtual_memory().available
+
+        bytes_per_state = 8 * N  # 64-bit floats
+        safety_factor = 2.0  # accounts for work arrays, overhead
+
+        # Memory-limited maximum
+        nsteps_mem_limited = int(mem_available / (safety_factor * bytes_per_state))
+        nsteps_mem_limited = max(1000, nsteps_mem_limited)  # enforce minimal cap
+
+        # Time-span scaling (logarithmic to avoid overgrowth)
+        nsteps_time_scaled = int(1e4 * np.log10(1.0 + 1e3 * t_span) + 1e5)
+
+        # Final combined limit
+        nsteps_auto = min(nsteps_mem_limited, nsteps_time_scaled)
+        nsteps_auto = int(np.clip(nsteps_auto, 10_000, 2_000_000))
+
+        return nsteps_auto
+
+    def _set_none_params(self, ode_problem: ODEProblem, time_span_length: float):
+        # Auto-tune nsteps_max if not provided
+        if self.adaptive and self.nsteps_max is None:
+            auto_nmax = self._auto_nsteps_max(ode_problem)
+            self.nsteps_max = auto_nmax
+            if self.verbose:
+                self._print_verbose(f"Auto-selected nsteps_max = {auto_nmax}")
+        
+        # set auto_check_sparsity based on the number of equations, and the sparse threshold
+        if ode_problem.number_of_equations < self.sparse_threshold:
+            self.auto_check_sparsity = False
+
+        if self.adaptive:
+            if self.min_step is None:
+                from ..utils.pyodys_utils import _DEFAULT_ZERO_TOL
+                scale_factor = 1e-12 
+                self.min_step = min(time_span_length, max(_DEFAULT_ZERO_TOL, scale_factor * time_span_length) ) 
+                if self.verbose:
+                    self._print_verbose(f"Setting adaptive minimum step size {self.min_step}.")
+
+            if self.max_step is None:
+                self.max_step = time_span_length 
+                if self.verbose:
+                    self._print_verbose(f"Setting adaptive maximum step size to {self.max_step}.")

@@ -41,13 +41,13 @@ if __name__ == "__main__":
     systeme = SimpleIndex1DAE()
 
     solver = PyodysSolver(
-        method="sdirk211",   # implicit solver suitable for DAE
+        method="sdirk21",   # implicit solver suitable for DAE
         first_step=None,
         adaptive=True,
-        atol=1e-10,
-        rtol=1e-10,
-        min_step=1e-6,
-        max_step=1.0,
+        # atol=1e-10,
+        # rtol=1e-10,
+        # min_step=1e-6,
+        # max_step=1.0,
         verbose=True,
         linear_solver="lu"
     )

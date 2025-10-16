@@ -36,42 +36,58 @@ class RKSolver(SolverBase):
         a built-in scheme (e.g. "erk4", "sdirk2", "esdirk6", "dopri5").
         For adaptive methods, the scheme must provide an embedded solution.
     fixed_step : float, optional
-        Fixed step size. Required if adaptive=False.
-    adaptive : bool, default=False
-        If True, the solver adjusts the step size to satisfy error tolerances.
+        The fixed step size to use for non-adaptive solvers.
+        Required if `adaptive` is False.
+    adaptive : bool, default True
+        If True, enable adaptive step size control.
     first_step : float, optional
-        Initial step size for adaptive mode. If None, estimated automatically.
-    min_step, max_step : float, optional
-        Minimum and maximum allowed step sizes for adaptive mode.
-    nsteps_max : int, default=1_000_000
-        Maximum number of allowed time steps.
-    newton_nmax : int, default=10
-        Maximum Newton iterations per implicit stage.
-    rtol, atol : float, default=1e-8
-        Relative and absolute tolerances for adaptive step control.
-    linear_solver : Union[str, Callable], default 'lu', others available 'gmres', 'cg', 'svd'
+        The initial step size to use for adaptive solvers. If not
+        provided, a safe initial step is estimated.
+    min_step : float, optional, default None
+        The minimum allowed step size for adaptive solvers.
+        If None, Pyodys automatically estimate its value based on the problem.
+    max_step : float, optional, default None
+        The maximum allowed step size for adaptive solvers.
+        If None, Pyodys automatically set its value equal to the size time span.
+    nsteps_max : int, default None
+        Maximum number of steps allowed. The solver will terminate if this
+        limit is reached.
+        If None, Pyodys automatically set its value based on the time span and, the available memory.
+    newton_nmax : int, default 10
+        Maximum number of Newton iterations for implicit solvers.
+    rtol : float, default 1e-8
+        The relative tolerance for adaptive error control. Required for
+        adaptive solvers.
+    atol : float, default 1e-8
+        The absolute tolerance for adaptive error control. Required for
+        adaptive solvers.
+    linear_solver : Union[str, Callable], default 'lu'
         Linear solver used for implicit schemes.
     linear_solver_opts : dict, optional
         Additional options for the linear solver.
-    max_jacobian_refresh : int, default=1
-        Max number of times to recompute/refactorize Jacobian within a step.
-    verbose : bool, default=False
-        If True, print progress/debug output.
-    progress_interval_in_time : float, optional
-        Time interval between progress messages.
+    max_jacobian_refresh : int, default 1
+        Maximum number of times to re-evaluate the Jacobian for implicit
+        solvers.
+    verbose : bool, default False
+        If True, prints detailed information about the solver's progress.
+    progress_interval_in_time : int, optional
+        If provided, the solver will print progress at regular time intervals.
     export_interval : int, optional
-        Number of steps between CSV exports. If None, export is disabled.
+        If provided, the solver will export results at regular step intervals.
     export_prefix : str, optional
-        File prefix for exported CSV files.
-    auto_check_sparsity : bool, default=True
-        Automatically detect sparse vs dense Jacobian structure.
-    sparse_threshold : int, default=20
-        Minimum system size before checking sparsity.
-    sparsity_ratio_limit : float, default=0.2
-        If the Jacobian has fewer than this fraction of nonzeros,
-        it is treated as sparse.
-    initial_step_safety : float, default=1e-4
-        Safety factor used when estimating the initial adaptive step size.
+        The prefix for exported CSV file names. If provided, results are
+        automatically exported.
+    auto_check_sparsity : bool, default True
+        If True, the solver automatically checks matrix density and switches
+        to sparse algebra if the matrix is sufficiently sparse.
+    sparse_threshold : int, default 20
+        The minimum size (number of equations) of a system for which a sparsity
+        check is performed.
+    sparsity_ratio_limit : float, default 0.2
+        The maximum ratio of non-zero elements (density) for a matrix to be
+        considered sparse and use sparse algebra.
+    initial_step_safety : float, default 1e-4
+        A safety factor used during the initial step size estimation for adaptive solvers.
     Raises
     ------
     TypeError
@@ -97,11 +113,11 @@ class RKSolver(SolverBase):
     def __init__(self,
                  method: Union[RKScheme, str] = None,
                  fixed_step: float = None,
-                 adaptive: bool = False,
+                 adaptive: bool = True,
                  first_step: float = None,
                  min_step: float = None, 
                  max_step: float = None,
-                 nsteps_max: int = 1000000,
+                 nsteps_max: int = None,
                  newton_nmax: int = 10,
                  rtol: float = 1e-8,
                  atol: float = 1e-8,
@@ -138,6 +154,9 @@ class RKSolver(SolverBase):
             sparse_threshold = sparse_threshold,
             sparsity_ratio_limit = sparsity_ratio_limit,
             initial_step_safety = initial_step_safety)
+        
+        if not adaptive and fixed_step is None:
+            raise ValueError("Since you choose not to use adaptive stepping, you must provide a value for the fixed step size.")
 
         # Resolve RK scheme
         if isinstance(method, str):
@@ -535,6 +554,13 @@ class RKSolver(SolverBase):
         self._nb_equations = ode_problem.number_of_equations
         n_stages = self.butcher_tableau.n_stages
         n_eq = self._nb_equations
+        
+        dT = abs(ode_problem.t_final - ode_problem.t_init)
+        if self.adaptive and self.min_step is not None and self.min_step > dT:
+            raise ValueError (f"Min step must be less than the time interval size. You provided min_step = "
+                              f"{self.min_step}, but the length of the time span is {abs(ode_problem.t_final - ode_problem.t_init)}")
+
+        self._set_none_params(ode_problem = ode_problem, time_span_length = dT)
 
         if self.auto_check_sparsity:
             if self._mass_matrix_is_identity and not self.rk_scheme_is_erk:
@@ -542,7 +568,7 @@ class RKSolver(SolverBase):
             elif not self._mass_matrix_is_identity and self.rk_scheme_is_erk:
                 self._detect_sparsity_and_store_mass_matrix_if_constant(ode_problem, ode_problem.t_init, ode_problem.initial_state)
             elif not self._mass_matrix_is_identity and self.rk_scheme_is_dirk:
-                self._detect_global_sparsity(ode_problem, ode_problem.t_init, ode_problem.initial_state, h = (ode_problem.t_final - ode_problem.t_init)/100.0, a_ii = self.gamma_sdirk)
+                self._detect_global_sparsity(ode_problem, ode_problem.t_init, ode_problem.initial_state, h = dT/100.0, a_ii = self.gamma_sdirk)
 
         # Precompute identity for future use. Will probably be removed for optinmization. I don't actually need to store this.
         if self._Id is None and self._mass_matrix_is_identity and self.rk_scheme_is_dirk:
@@ -617,6 +643,8 @@ class RKSolver(SolverBase):
         max_newton_failures = 10
         k = 0
 
+        previous_step_failed = False
+
         while current_time < t_final and number_of_time_steps < nsteps_max:
             step_size = min(step_size, t_final - current_time)
 
@@ -670,7 +698,8 @@ class RKSolver(SolverBase):
                 t_final = t_final, 
                 atol = self.atol, 
                 rtol = self.rtol, 
-                error_estimator_order=self._error_estimator_order, 
+                error_estimator_order=self._error_estimator_order,
+                previous_step_failed=previous_step_failed,
                 print_verbose=super()._print_verbose
             )
 
@@ -686,6 +715,7 @@ class RKSolver(SolverBase):
                 step_size = new_step_size
                 number_of_time_steps += 1
                 k += 1
+                previous_step_failed = False
 
                 if self.export_interval and k == self.export_interval:
                     super()._export(times[:k], solutions[:k, :])
@@ -705,6 +735,7 @@ class RKSolver(SolverBase):
                     f"Retrying with step size: {new_step_size:.4e}"
                 )
                 step_size = new_step_size
+                previous_step_failed = True
 
         if self.export_interval:
             if k > 0:

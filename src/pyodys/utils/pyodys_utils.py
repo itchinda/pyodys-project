@@ -1,6 +1,6 @@
 import numpy as np
 
-_DEFAULT_ZERO_TOL = 1e-15
+_DEFAULT_ZERO_TOL =  10*np.finfo(float).eps if np.finfo(float).eps != 0.0 else 1e-15
 
 class PyodysError(RuntimeError):
     """Exception raised when PyOdys fails to solve a problem."""
@@ -36,6 +36,7 @@ def check_step_size(
         atol : float,
         rtol : float,
         error_estimator_order: int,
+        previous_step_failed: bool,
         print_verbose: callable = print
     ):
     """Validate and adapt the time step size based on error estimates.
@@ -80,4 +81,11 @@ def check_step_size(
         new_time = current_time + step_size
         if new_time + new_step_size > t_final:
             new_step_size = max(t_final - new_time, 0.0)
+
+    if previous_step_failed and abs(new_step_size - step_size) < _DEFAULT_ZERO_TOL:
+        raise PyodysError(
+                            f"Adaptive solver cannot advance the solution: current step {step_size:.2e} "
+                            f"could not satisfy error tolerance (err = {err:.2e}). "
+                            f"Consider adjusting min_step, atol, or rtol."
+                        )
     return new_step_size, step_accepted
