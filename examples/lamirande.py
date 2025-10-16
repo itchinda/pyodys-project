@@ -131,7 +131,7 @@ if __name__ == '__main__':
     solver = PyodysSolver(
         method='sdirk43',                                    
         adaptive=True,
-        min_step=1e-10,
+        min_step=1e-8,
         max_step=100,
         rtol=1e-10,
         atol=1e-10,

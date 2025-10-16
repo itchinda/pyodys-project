@@ -87,12 +87,9 @@ if __name__ == "__main__":
     solver = PyodysSolver(
         method="sdirk43",
         adaptive=True,
-        first_step=1e-3,
         atol=1e-10,
         rtol=1e-10,
         min_step=1e-8,
-        max_step=1,
-        verbose=True,
         linear_solver="lu"   # Will automatically select scipy sparse lu (splu)
     )
 

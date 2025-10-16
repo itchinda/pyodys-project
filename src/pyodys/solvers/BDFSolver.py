@@ -31,41 +31,65 @@ class BDFSolver(SolverBase):
 
     Parameters
     ----------
-    method : (BDFScheme | str, optional): The BDF scheme to use, or its name as a string.
-    fixed_step : (float, optional): Step size for fixed-step integration.
-    adaptive : (bool, default=False) If True, enable adaptive step size control.
+    method : (BDFScheme | str), optional
+        The BDF scheme to use, or its name as a string.
+    fixed_step : float, optional 
+        Step size for fixed-step integration.
+    adaptive : bool, default True
+        If True, enable adaptive step size control.
+    fixed_step : float, optional
+        The fixed step size to use for non-adaptive solvers.
+        Required if `adaptive` is False.
+    adaptive : bool, default True
+        Whether to use an adaptive time-stepping algorithm.
     first_step : float, optional
-        Initial step size for adaptive integration.
-    min_step : float, optional
-        Minimum step size allowed for adaptive integration.
-    max_step : float, optional
-        Maximum step size allowed for adaptive integration.
-    nsteps_max : int, default=1_000_000
-        Maximum number of steps allowed during integration.
-    newton_nmax : int, default=10
-        Maximum number of Newton iterations per step.
-    rtol : float, default=1e-8
-        Relative tolerance for adaptive step size control.
-    atol : float, default=1e-8
-        Absolute tolerance for adaptive step size control.
-    max_jacobian_refresh : int, default=1
-        Maximum number of Jacobian recomputations if Newton fails.
-    verbose : bool, default=False
-        Enable progress and debug printing.
-    progress_interval_in_time : float, optional
-        Time interval to print progress updates.
+        The initial step size to use for adaptive solvers. If not
+        provided, a safe initial step is estimated.
+    min_step : float, optional, default None
+        The minimum allowed step size for adaptive solvers.
+        If None, Pyodys automatically estimate its value based on the problem.
+    max_step : float, optional, default None
+        The maximum allowed step size for adaptive solvers.
+        If None, Pyodys automatically set its value equal to the size time span.
+    nsteps_max : int, default None
+        Maximum number of steps allowed. The solver will terminate if this
+        limit is reached.
+        If None, Pyodys automatically set its value based on the time span and, the available memory.
+    newton_nmax : int, default 10
+        Maximum number of Newton iterations for implicit solvers.
+    rtol : float, default 1e-8
+        The relative tolerance for adaptive error control. Required for
+        adaptive solvers.
+    atol : float, default 1e-8
+        The absolute tolerance for adaptive error control. Required for
+        adaptive solvers.
+    linear_solver : Union[str, Callable], default 'lu'
+        Linear solver used for implicit schemes.
+    linear_solver_opts : dict, optional
+        Additional options for the linear solver.
+    max_jacobian_refresh : int, default 1
+        Maximum number of times to re-evaluate the Jacobian for implicit
+        solvers.
+    verbose : bool, default False
+        If True, prints detailed information about the solver's progress.
+    progress_interval_in_time : int, optional
+        If provided, the solver will print progress at regular time intervals.
     export_interval : int, optional
-        Number of steps between CSV exports.
+        If provided, the solver will export results at regular step intervals.
     export_prefix : str, optional
-        File prefix for CSV export.
-    auto_check_sparsity : bool, default=True
-        Automatically detect sparse Jacobians.
-    sparse_threshold : int, default=20
-        Minimum system size to trigger sparse detection.
-    sparsity_ratio_limit : float, default=0.2
-        Threshold to classify a Jacobian as sparse.
-    initial_step_safety : float, default=1e-4
-        Safety factor for the first step size.
+        The prefix for exported CSV file names. If provided, results are
+        automatically exported.
+    auto_check_sparsity : bool, default True
+        If True, the solver automatically checks matrix density and switches
+        to sparse algebra if the matrix is sufficiently sparse.
+    sparse_threshold : int, default 20
+        The minimum size (number of equations) of a system for which a sparsity
+        check is performed.
+    sparsity_ratio_limit : float, default 0.2
+        The maximum ratio of non-zero elements (density) for a matrix to be
+        considered sparse and use sparse algebra.
+    initial_step_safety : float, default 1e-4
+        A safety factor used during the initial step size estimation for adaptive solvers.
         
     Raises
     ------
@@ -93,11 +117,11 @@ class BDFSolver(SolverBase):
     def __init__(self,
                  method: Union[BDFScheme, str] = None,
                  fixed_step: float = None,
-                 adaptive: bool = False,
+                 adaptive: bool = True,
                  first_step: float = None,
                  min_step: float = None, 
                  max_step: float = None,
-                 nsteps_max: int = 1000000,
+                 nsteps_max: int = None,
                  newton_nmax: int = 10,
                  rtol: float = 1e-8,
                  atol: float = 1e-8,
@@ -115,6 +139,9 @@ class BDFSolver(SolverBase):
         """Initialize a BDF solver. """
     
         raise utils.PyodysError("The BDF solver is not yet implemented. Consider using a Runge-Kutta scheme.")
+    
+        if not adaptive and fixed_step is None:
+            raise ValueError("Since you choose not to use adaptive stepping, you must provide a value for the fixed step size.")
 
         super().__init__(
             fixed_step = fixed_step,

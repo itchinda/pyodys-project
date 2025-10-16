@@ -4,7 +4,7 @@ from ..schemes.bdf.BDFScheme import BDFScheme
 from ..schemes.rk.RKScheme import RKScheme
 from ..ode.ODEProblem import ODEProblem
 from ..utils.pyodys_utils import PyodysError
-
+from numpy import inf
 from typing import Union, Callable
 
 
@@ -25,9 +25,8 @@ class PyodysSolver(object):
         `RKScheme` or `BDFScheme` object.
     fixed_step : float, optional
         The fixed step size for non-adaptive solvers. Required if `adaptive` is False.
-    adaptive : bool, default False
-        Enables adaptive time-stepping. If True, `min_step`, `max_step`, `rtol`, and `atol`
-        are required.
+    adaptive : bool, default True
+        If True, enable adaptive step size control.
     first_step : float, optional
         Initial step size for adaptive solvers. If not provided, it's estimated automatically.
     min_step : float, optional
@@ -84,11 +83,11 @@ class PyodysSolver(object):
     """
     def __init__(self, method: Union[str, RKScheme, BDFScheme] = None,
                  fixed_step: float = None,
-                 adaptive: bool = False,
+                 adaptive: bool = True,
                  first_step: float = None,
                  min_step: float = None, 
                  max_step: float = None,
-                 nsteps_max: int = 100000,
+                 nsteps_max: int = None,
                  newton_nmax: int = 10,
                  rtol: float = 1e-8,
                  atol: float = 1e-8,
@@ -175,7 +174,7 @@ class PyodysSolver(object):
         """
         if self._solver_kwargs['verbose'] and self._call_count==0:
             self._print_params()
-        
+
         self._call_count+=1
         solver = self._solver_cls(**self._solver_kwargs)
         return solver.solve(ode_problem)
@@ -197,3 +196,5 @@ class PyodysSolver(object):
             print(f"{key:<25}: {value}")
 
         print("----------------------------------------")
+
+    

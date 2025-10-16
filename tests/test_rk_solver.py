@@ -138,29 +138,31 @@ def test_invalid_tableau_name_raises():
     with pytest.raises(ValueError):
         RKSolver(method="not_a_tableau")
 
-def test_missing_first_step_raises():
+def test_missing_fixed_step_raises():
     bt = RKScheme.from_name(RKScheme.available_schemes()[0])
     with pytest.raises(ValueError):
-        RKSolver(method=bt, fixed_step=None)
+        RKSolver(method=bt, adaptive = False, fixed_step=None)
 
-def test_adaptive_missing_args_raise():
+def test_min_step_too_large_raises():
     bt = RKScheme.from_name(RKScheme.available_schemes()[0])
-    # missing min/max
-    with pytest.raises(TypeError):
-        RKSolver(
-            method=bt, 
-            first_step=0.1,
-            adaptive=True, 
-            min_step=None,
-            max_step=0.1, 
-            rtol=1e-3
+    with pytest.raises(ValueError):
+        tableau = RKScheme.from_name("erk4")
+        min_step = 1.2
+        solver = RKSolver(
+            method=tableau,
+            adaptive=True,
+            min_step=min_step
         )
+
+        system = StiffProblem(t_init=0.0, t_final=min_step/2, initial_state=[1.0,2.0])
+        temps, solutions = solver.solve(system)
 
 def test_export_creates_csv(tmp_path):
     bt = RKScheme.from_name(RKScheme.available_schemes()[0])
     prefix = str(tmp_path / "results/out")
     solver = RKSolver(
         method=bt,
+        adaptive = False,
         fixed_step=0.1,
         export_prefix=prefix,
         export_interval=1
@@ -285,7 +287,7 @@ class TimeVaryingMassProblem(ODEProblem):
 def test_solver_time_varying_mass(method_name):
     tableau = RKScheme.from_name(method_name)
     system = TimeVaryingMassProblem()
-    solver = RKSolver(method=tableau, fixed_step=0.01, adaptive=False)
+    solver = RKSolver(method=tableau, adaptive = False, fixed_step=0.01)
     times, solutions = solver.solve(system)
     assert solutions.shape[0] == len(times)
     assert solutions.shape[1] == 2
@@ -361,7 +363,7 @@ def test_user_defined_linear_solver_called():
         return np.linalg.solve(A, rhs)
     
     tableau = RKScheme.from_name("SDIRK2")  # choose a DIRK/SDIRK scheme
-    solver = RKSolver(method=tableau, fixed_step=0.01, linear_solver=my_solver)
+    solver = RKSolver(method=tableau, adaptive = False, fixed_step=0.01, linear_solver=my_solver)
     system = ExponentialDecay()
     
     solver.solve(system)
@@ -387,6 +389,7 @@ def test_random_wrong_linear_solver_triggers_pyodys_error():
     tableau = RKScheme.from_name("SDIRK2")
     solver = RKSolver(
         method=tableau,
+        adaptive = False,
         fixed_step=0.1,
         linear_solver=random_solver,
         newton_nmax=5,  # low iteration to speed up failure
@@ -406,7 +409,7 @@ def test_user_defined_solver_with_constant_mass():
     
     tableau = RKScheme.from_name("SDIRK2")
     system = ConstantMassMatrixProblem()
-    solver = RKSolver(method=tableau, fixed_step=0.01, linear_solver=custom_solver)
+    solver = RKSolver(method=tableau, adaptive = False, fixed_step=0.01, linear_solver=custom_solver)
     
     times, solutions = solver.solve(system)
     assert called["flag"] is True
@@ -422,7 +425,7 @@ def test_user_defined_solver_time_varying_mass():
     
     tableau = RKScheme.from_name("SDIRK2")
     system = TimeVaryingMassProblem()
-    solver = RKSolver(method=tableau, fixed_step=0.01, linear_solver=custom_solver)
+    solver = RKSolver(method=tableau, adaptive = False, fixed_step=0.01, linear_solver=custom_solver)
     
     times, solutions = solver.solve(system)
     assert called["flag"] is True
