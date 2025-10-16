@@ -122,9 +122,6 @@ if __name__ == '__main__':
     # Set up solver
     solver = PyodysSolver(
         method="esdirk64",
-        fixed_step=1e-4,
-        first_step=1e-8,
-        adaptive=True,
         rtol=1e-10,
         atol=1e-10,
         verbose=True
