@@ -12,7 +12,8 @@ description = "This is a robust and flexible Python package for solving ordinary
 readme = "README.md"
 dependencies = [
     "numpy",
-    "scipy"
+    "scipy",
+    "psutil"
 ]
 
 license = { file = "LICENSE" }
