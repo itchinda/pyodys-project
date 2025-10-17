@@ -159,10 +159,6 @@ if __name__ == "__main__":
 
     solver = PyodysSolver(
       method = 'sdirk43',
-      first_step = 1e-2,
-      adaptive = True,
-      min_step = 1e-6,
-      max_step = 1.0,
       atol = 1e-10,
       rtol = 1e-8
     )
@@ -282,18 +278,13 @@ class HeatFEMProblem(ODEProblem):
 # Run the Solver
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
-    N = 10000  # number of elements ===> N-1 = 49 DOFs
+    N = 10000  # number of elements
     problem = HeatFEMProblem(N, kappa=0.25)
     solver = PyodysSolver(
-        method="sdirk54",
-        adaptive=True,
-        first_step=1e-3,
-        atol=1e-8,
-        rtol=1e-8,
-        min_step=1e-8,
-        max_step=1,
-        verbose=True,
-        linear_solver="lu"   # Will automatically select scipy sparse lu (splu)
+        method="sdirk43",
+        atol=1e-10,
+        rtol=1e-10,
+        verbose=True
     )
 
     times, U = solver.solve(problem)

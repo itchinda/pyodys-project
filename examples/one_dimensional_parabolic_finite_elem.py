@@ -86,7 +86,6 @@ if __name__ == "__main__":
     problem = HeatFEMProblem(N, kappa=0.25)
     solver = PyodysSolver(
         method="sdirk43",
-        adaptive=True,
         atol=1e-10,
         rtol=1e-10,
         min_step=1e-8,

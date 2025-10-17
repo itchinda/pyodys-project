@@ -104,6 +104,21 @@ if __name__ == '__main__':
     # m3 = 4
     # v1, v2 = 0.9911981217, 0.7119472124
 
+    # Scenario 7
+    # tf = 50
+    # v1, v2 = 0.3420307307, 0.1809369236
+    # m3 = 0.5
+
+    # scenario 8
+    # tf = 50
+    # v1, v2 = 0.5337490177, 0.3041674607
+    # m3 = 0.75
+
+    # scenario 9
+    # tf = 100
+    # v1, v2 = 0.3477173243, 0.0739384079
+    # m3 = 0.75
+
     # Initial positions
     x10, y10 = -1, 0
     x20, y20 = 1, 0
@@ -121,7 +136,7 @@ if __name__ == '__main__':
 
     # Set up solver
     solver = PyodysSolver(
-        method="esdirk64",
+        method="dirk65",
         rtol=1e-10,
         atol=1e-10,
         verbose=True
@@ -138,52 +153,135 @@ if __name__ == '__main__':
                          for u in solutions])
     print(f"Max total energy: {np.max(energies)}, Min total energy: {np.min(energies)}")
 
-    # Create 2x2 subplot grid
-    fig, ax = plt.subplots(2, 2, figsize=(16, 6))
+
+    fig, ax = plt.subplots(3, 2, figsize=(14, 9))
+    # Prepare subplots
+    ax_anim = ax[0][0]   # This will now host the animation
+    ax_orbits = ax[0][1]
+    ax_x = ax[1][0]
+    ax_y = ax[1][1]
+    ax_velocity = ax[2][0]
+    ax_energy = ax[2][1]
+
+    # --- ANIMATED ORBIT ---
+    ax_anim.set_aspect('equal', adjustable='box')
+    ax_anim.grid(True)
+    ax_anim.set_title("Three-Body Gravitational Motion")
+    ax_anim.set_xlabel("$x$")
+    ax_anim.set_ylabel("$y$")
+
+    # Data arrays
+    x_all = solutions[:, [0, 2, 4]]
+    y_all = solutions[:, [1, 3, 5]]
+    x_min, x_max = np.min(x_all) * 1.2, np.max(x_all) * 1.2
+    y_min, y_max = np.min(y_all) * 1.2, np.max(y_all) * 1.2
+    ax_anim.set_xlim(x_min, x_max)
+    ax_anim.set_ylim(y_min, y_max)
+
+    # Body markers, trails, and COM
+    colors = ['b', 'r', 'k']
+    points = [ax_anim.plot([], [], 'o', color=c, markersize=8)[0] for c in colors]
+    trails = [ax_anim.plot([], [], '-', color=c, lw=1, alpha=0.6)[0] for c in colors]
+    COM, = ax_anim.plot([], [], 'go', markersize=5, alpha=0.4, label='COM')
+    ax_anim.legend()
 
     # Phase portrait (x vs y)
-    ax[0][0].plot(solutions[:, 0], solutions[:, 1], 'b-', alpha=0.75, label='Body 1')
-    ax[0][0].plot(solutions[:, 2], solutions[:, 3], 'r-', alpha=0.75, label='Body 2')
-    ax[0][0].plot(solutions[:, 4], solutions[:, 5], 'k-', alpha=0.75, label='Body 3')
-    ax[0][0].set_xlabel("$x$")
-    ax[0][0].set_ylabel("$y$")
-    ax[0][0].set_title("Three-Body System Orbits")
-    ax[0][0].grid(True)
-    ax[0][0].legend()
+    ax_orbits.plot(solutions[:, 0], solutions[:, 1], 'b-', alpha=0.75, label='Body 1')
+    ax_orbits.plot(solutions[:, 2], solutions[:, 3], 'r-', alpha=0.75, label='Body 2')
+    ax_orbits.plot(solutions[:, 4], solutions[:, 5], 'k-', alpha=0.75, label='Body 3')
+    ax_orbits.set_xlabel("$x$")
+    ax_orbits.set_ylabel("$y$")
+    ax_orbits.set_title("Three-Body System Orbits")
+    ax_orbits.grid(True)
+    ax_orbits.legend()
 
-    # Total energy over time
+    # --- X positions ---
+    ax_x.plot(times, solutions[:, 0], 'b-', label='Body 1')
+    ax_x.plot(times, solutions[:, 2], 'r-', label='Body 2')
+    ax_x.plot(times, solutions[:, 4], 'k-', label='Body 3')
+    ax_x.set_xlabel("Time")
+    ax_x.set_ylabel("$x$")
+    ax_x.set_title("$x$-coordinates")
+    ax_x.grid(True)
+    ax_x.legend()
+
+    # --- Y positions ---
+    ax_y.plot(times, solutions[:, 1], 'b-', label='Body 1')
+    ax_y.plot(times, solutions[:, 3], 'r-', label='Body 2')
+    ax_y.plot(times, solutions[:, 5], 'k-', label='Body 3')
+    ax_y.set_xlabel("Time")
+    ax_y.set_ylabel("$y$")
+    ax_y.set_title("$y$-coordinates")
+    ax_y.grid(True)
+    ax_y.legend()
+
+
+    # Phase portrait (x vs y)
+    ax_velocity.plot(times, np.sqrt( solutions[:, 6]**2 + solutions[:, 7]**2 ), 'b-', alpha=0.75, label='Body 1')
+    ax_velocity.plot(times, np.sqrt( solutions[:, 8]**2 + solutions[:, 9]**2 ), 'r-', alpha=0.75, label='Body 2')
+    ax_velocity.plot(times, np.sqrt( solutions[:,10]**2 + solutions[:,11]**2 ), 'k-', alpha=0.75, label='Body 3')
+    ax_velocity.set_xlabel("Time")
+    ax_velocity.set_ylabel(r"$\|\boldsymbol{v}\|$")
+    ax_velocity.set_title("Three-Body Velocity")
+    ax_velocity.grid(True)
+    ax_velocity.legend()
+
+     # --- Total energy ---
     from matplotlib.ticker import FuncFormatter
     formatter = FuncFormatter(lambda y, _: f'{y:.3e}')
-    ax[0][1].plot(times, energies, 'k-')
-    ax[0][1].set_xlabel("Time")
-    ax[0][1].set_ylabel("Total Energy")
-    ax[0][1].set_title(
-        r"Three-Body System: "
-        r"$E_\mathrm{tot} = \sum_{i=1}^{3} \frac{1}{2} m_i \|\boldsymbol{v}_i\|^2 "
-        r"- \sum_{i=1}^{3} \sum_{j>i}^{3} G \frac{m_i m_j}{\left\|\mathbf{r}_i - \mathbf{r}_j\right\|}$"
+    ax_energy.plot(times, energies, 'k-')
+    ax_energy.set_xlabel("Time")
+    ax_energy.set_ylabel(r"$E_\mathrm{tot}$ ")
+    ax_energy.set_title(r"Energy Conservation: "
+                        r"$E_\mathrm{tot} = \sum_{i=1}^{3} \frac{1}{2} m_i \|\boldsymbol{v}_i\|^2 " 
+                        r"- \sum_{i=1}^{3} \sum_{j>i}^{3} G \frac{m_i m_j}{\left\|\mathbf{r}_i - \mathbf{r}_j\right\|}$"
+                    )
+    ax_energy.grid(True)
+    ax_energy.yaxis.set_major_formatter(formatter)
+
+    # --- ANIMATION UPDATE ---
+    import matplotlib.animation as animation
+
+    def update(frame):
+        if frame == 0:
+            for p, t in zip(points, trails):
+                p.set_data([], [])
+                t.set_data([], [])
+            COM.set_data([], [])
+            return points + trails + [COM]
+
+        for i, (p, t) in enumerate(zip(points, trails)):
+            xi, yi = x_all[:frame, i], y_all[:frame, i]
+            p.set_data([xi[-1]], [yi[-1]])
+            t.set_data(xi, yi)
+
+        # Center of mass
+        total_m = system.m1 + system.m2 + system.m3
+        cx = (system.m1 * x_all[frame-1, 0] +
+              system.m2 * x_all[frame-1, 1] +
+              system.m3 * x_all[frame-1, 2]) / total_m
+        cy = (system.m1 * y_all[frame-1, 0] +
+              system.m2 * y_all[frame-1, 1] +
+              system.m3 * y_all[frame-1, 2]) / total_m
+        COM.set_data([cx], [cy])
+
+        return points + trails + [COM]
+
+    # --- Launch animation within same figure ---
+    interval = 1000 * (times[-1] - times[0]) / len(times)
+    step = 5  # skip every 5th frame
+    ani = animation.FuncAnimation(
+        fig, update, frames=range(0, len(times), step), interval=interval, blit=True
     )
-    ax[0][1].grid(True)
-    ax[0][1].yaxis.set_major_formatter(formatter)
-
-    # x-coordinates over time
-    ax[1][0].plot(times, solutions[:, 0], 'b-', label='Body 1')
-    ax[1][0].plot(times, solutions[:, 2], 'r-', label='Body 2')
-    ax[1][0].plot(times, solutions[:, 4], 'k-', label='Body 3')
-    ax[1][0].set_xlabel("Time")
-    ax[1][0].set_ylabel("$x$")
-    ax[1][0].set_title("Three-Body System: $x$-coordinate vs Time")
-    ax[1][0].grid(True)
-    ax[1][0].legend()
-
-    # y-coordinates over time
-    ax[1][1].plot(times, solutions[:, 1], 'b-', label='Body 1')
-    ax[1][1].plot(times, solutions[:, 3], 'r-', label='Body 2')
-    ax[1][1].plot(times, solutions[:, 5], 'k-', label='Body 3')
-    ax[1][1].set_xlabel("Time")
-    ax[1][1].set_ylabel("$y$")
-    ax[1][1].set_title("Three-Body System: $y$-coordinate vs Time")
-    ax[1][1].grid(True)
-    ax[1][1].legend()
 
     plt.tight_layout()
+
+    # from matplotlib.animation import PillowWriter
+
+    # # Save animation as GIF
+    # output_path = "three_body_animation.gif"
+    # writer = PillowWriter(fps=30)  # frames per second
+    # ani.save(output_path, writer=writer)
+    # #ani.save(output_path, writer="ffmpeg", fps=15)
+    # print(f"Animation saved as: {os.path.abspath(output_path)}")
     plt.show()

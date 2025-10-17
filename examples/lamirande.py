@@ -131,13 +131,9 @@ if __name__ == '__main__':
     solver = PyodysSolver(
         method='sdirk43',                                    
         adaptive=True,
-        min_step=1e-8,
-        max_step=100,
         rtol=1e-10,
         atol=1e-10,
-        max_jacobian_refresh=1,
-        verbose=True, 
-        progress_interval_in_time=1.0
+        verbose=True
     )
 
     start=time.time()
