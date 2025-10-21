@@ -193,7 +193,13 @@ class PyodysSolver(object):
 
         for key, value in sorted_params:
             # Use an f-string to format key and value with alignment
-            print(f"{key:<25}: {value}")
+            if key == "method":
+                if isinstance(value, str):
+                    print(f"{key:<25}: {value}")
+                else:
+                    print(f"{key:<25}: User-defined")
+            else:
+                print(f"{key:<25}: {value}")
 
         print("----------------------------------------")
 

@@ -314,23 +314,20 @@ def _get_sdirk_hairer_norsett_wanner_45():
 def _get_esdirk6():
 
     A = [
-            [Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
-            [Fraction(5, 16), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
-            [Fraction(-6647797099592, 102714892273533), Fraction(-6647797099592, 102714892273533), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
-            [Fraction(-87265218833, 1399160431079), Fraction(-87265218833, 1399160431079), Fraction(3230569391728, 5191843160709), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1), Fraction(0, 1)],
-            [Fraction(-3742173976023, 7880396319491), Fraction(-4537732256035, 9784784042546), Fraction(32234033847818, 24636233068093), Fraction(1995418204833, 9606020544314), Fraction(5, 16), Fraction(0, 1), Fraction(0, 1)],
-            [Fraction(-460973220726, 7579441323155), Fraction(-113988582459, 8174956167569), Fraction(-679076942985, 7531712581924), Fraction(1946214040135, 12392905069014), Fraction(-2507263458377, 16215886710685), Fraction(5, 16), Fraction(0, 1)],
-            [Fraction(2429030329867, 4957732179206), Fraction(5124723475981, 12913403568538), Fraction(3612624980699, 11761071195830), Fraction(714493169479, 5549220584147), Fraction(-4586610949246, 13858427945825), Fraction(-4626134504839, 7500671962341), Fraction(5, 16)]
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [5.0 / 16, 5.0 / 16, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [-6647797099592.0 / 102714892273533, -6647797099592.0 / 102714892273533, 5.0 / 16, 0.0, 0.0, 0.0, 0.0],
+            [-87265218833.0 / 1399160431079, -87265218833.0 / 1399160431079, 3230569391728.0 / 5191843160709, 5.0 / 16, 0.0, 0.0, 0.0],
+            [-3742173976023.0 / 7880396319491, -4537732256035.0 / 9784784042546, 32234033847818.0 / 24636233068093, 1995418204833.0 / 9606020544314, 5.0 / 16, 0.0, 0.0],
+            [-460973220726.0 / 7579441323155, -113988582459.0 / 8174956167569, -679076942985.0 / 7531712581924, 1946214040135.0 / 12392905069014, -2507263458377.0 / 16215886710685, 5.0 / 16, 0.0],
+            [2429030329867.0 / 4957732179206, 5124723475981.0 / 12913403568538, 3612624980699.0 / 11761071195830, 714493169479.0 / 5549220584147, -4586610949246.0 / 13858427945825, -4626134504839.0 / 7500671962341, 5.0 / 16]
         ]
 
-    b = [Fraction(541976983222, 5570117184863), Fraction(424517620289, 10281234581904), Fraction(3004784109584, 2968823999583), Fraction(-1080268266981, 2111416452515), Fraction(3198291424887, 7137915940442), Fraction(-6709580973937, 9894986011196), Fraction(4328230890552, 7324362344791)]
-    bhat = [Fraction(23807813993, 6613359907661), Fraction(122567156372, 6231407414731), Fraction(5289947382915, 9624205771537), Fraction(-132784415823, 2592433009541), Fraction(2055455363695, 9863229933602), Fraction(-686952476184, 6416474135057), Fraction(2766631516579, 7339217152243)]
+    b = [541976983222.0 / 5570117184863, 424517620289.0 / 10281234581904, 3004784109584.0 / 2968823999583, -1080268266981.0 / 2111416452515, 3198291424887.0 / 7137915940442, -6709580973937.0 / 9894986011196, 4328230890552.0 / 7324362344791]
+    bhat = [23807813993.0 / 6613359907661, 122567156372.0 / 6231407414731, 5289947382915.0 / 9624205771537, -132784415823.0 / 2592433009541, 2055455363695.0 / 9863229933602, -686952476184.0 / 6416474135057, 2766631516579.0 / 7339217152243]
 
     # Convert to floats for numerical use
-    A = [[float(x) for x in row] for row in A]
-    b_float = [float(x) for x in b]
-    bhat_float = [float(x) for x in bhat]
-    B = [b_float, bhat_float]
+    B = [b, bhat]
     c1 = 0; c2 = 5./8; c3 = 5.*(2-np.sqrt(2))/16; c4 = 81./100; c5 = 89./100; c6 = 3./20; c7 = 11./16
     C = [c1,c2,c3,c4,c5,c6,c7]
     return {"A": A, "B": B, "C": C, "order": 6, "embedded_order": 4, "a_stable": True}
@@ -360,6 +357,54 @@ def _get_dirk65():
     l_stable = True
     a_stable = True
     return {"A": a, "B": B, "C": C, "order": order, "embedded_order": embedded_order, "a_stable": a_stable, "l_stable": l_stable}
+
+
+_SCHEME_BUILDERS = {
+    "erk1": _get_erk1,
+    "erk2": _get_erk2_midpoint,
+    "erk4": _get_erk4,
+    "sdirk1": _get_sdirk1,
+    "sdirk2": _get_sdirk2_midpoint,
+    "sdirk4": _get_sdirk43_crouzeix,
+    "cooper_verner8": _get_cooper_verner,
+    "euler_heun21": _get_euler_heun,
+    "bogacki_shampine43": _get_bogacki_shampine,
+    "fehlberg54": _get_fehlberg45,
+    "dopri54": _get_dopri5,
+    "dopri85": _get_dorpri85,
+    "sdirk21": _get_sdirk21_crouzeix_raviart,
+    "sdirk32": _get_sdirk_norsett_thomson_23,
+    "sdirk43": _get_sdirk_norsett_thomson_34,
+    "sdirk54": _get_sdirk_hairer_norsett_wanner_45,
+    "esdirk64": _get_esdirk6,
+    "dirk65": _get_dirk65,
+}
+
+def get_scheme(name: str)->dict:
+    """
+    Return the butcher tableau coefficients of a Runge-Kutta scheme.
+
+    Parameters
+    ----------
+    name : str
+        The name of the built-in Runge-Kutta scheme.
+
+    Returns:
+        A dictionary that store the Butcher tableau data, as well as available properties of the scheme.
+    
+    """
+    try:
+        return _SCHEME_BUILDERS[name.lower()]()
+    except KeyError:
+        raise ValueError(
+            f"Unknown scheme '{name}'. Available schemes are:\n"
+            + "\n".join(sorted(list(_SCHEME_BUILDERS.keys())))
+        )
+
+
+def get_available_rk_schemes_names() -> list:
+    """Returns the names of built-in Runge-Kutta method in a list"""
+    return list(_SCHEME_BUILDERS.keys())
 
 def available_butcher_table_data_to_json():
     """
@@ -391,6 +436,3 @@ def available_butcher_table_data_to_json():
 
     with open(file_path, 'w') as f:
         json.dump(all_schemes, f, indent=4)
-    
-if __name__ == '__main__':
-    available_butcher_table_data_to_json()

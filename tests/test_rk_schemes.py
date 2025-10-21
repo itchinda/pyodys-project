@@ -307,7 +307,7 @@ class TestParNom:
         assert tableau.is_diagonally_implicit
 
     def test_nom_inconnu(self):
-        with pytest.raises(ValueError, match=r"Nom de schema inconnu: 'non_existent'"):
+        with pytest.raises(ValueError):
             RKScheme.par_nom('non_existent')
 
     def test_insensibilite_a_la_casse(self):
