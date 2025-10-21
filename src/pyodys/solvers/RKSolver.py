@@ -1,7 +1,7 @@
 from ..ode.ODEProblem import ODEProblem
 from ..schemes.rk.RKScheme import RKScheme
 from .SolverBase import SolverBase
-from ..utils import pyodys_utils as utils
+from ..utils.pyodys_utils import PyodysError
 import numpy as np
 from typing import Union, Callable
 from scipy.linalg import lu_factor, lu_solve, LinAlgError
@@ -173,7 +173,7 @@ class RKSolver(SolverBase):
             raise TypeError("method must be an RKScheme instance or a scheme name string.")
 
         if self.butcher_tableau.is_implicit and not self.butcher_tableau.is_diagonally_implicit:
-            raise utils.PyodysError("General implicit RK schemes are not supported. Use a diagonally-implicit variant.")
+            raise PyodysError("General implicit RK schemes are not supported. Use a diagonally-implicit variant.")
 
         if not adaptive and fixed_step is None:
             raise ValueError("When adaptive=False you must provide fixed_step.")
@@ -502,7 +502,7 @@ class RKSolver(SolverBase):
                     U_newton -= delta
 
                     eta=1
-                    if utils.wrms_norm(delta, U_newton, eta*self.atol, eta*self.rtol) < 1.0:
+                    if self._wrms_norm(delta, U_newton, eta*self.atol, eta*self.rtol) < 1.0:
                         newton_succeeded = True
                         break
 
@@ -669,7 +669,7 @@ class RKSolver(SolverBase):
                     )
                     super()._print_verbose(message)
                     self.newton_failed = True
-                    raise utils.PyodysError(message)
+                    raise PyodysError(message)
                 continue  # retry immediately at same time
 
             # succes case:
@@ -688,7 +688,7 @@ class RKSolver(SolverBase):
 
             newton_failure_count = 0
 
-            new_step_size, step_accepted = utils.check_step_size(
+            new_step_size, step_accepted = self._check_step_size(
                 U_approx = U_n_plus_1, 
                 U_pred = U_pred, 
                 step_size = step_size,
@@ -852,7 +852,7 @@ class RKSolver(SolverBase):
                 self.newton_failed = True
                 message = f"Newton failed at time step {n+1} even after Jacobian refresh."
                 super()._print_verbose(message)
-                raise utils.PyodysError(message)
+                raise PyodysError(message)
 
             U_courant = U_n_plus_1
             current_time += self.fixed_step

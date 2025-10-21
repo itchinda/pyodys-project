@@ -59,13 +59,22 @@ if __name__ == "__main__":
     print("Solving with a fixed, small step to avoid adaptive step size control failure.")
     print("-----------------------------------------\n")
     
+    A = np.array([[1.0/2]])
+    B = np.array([1.0])
+    C = np.array([1.0/2])
+    from pyodys import RKScheme
+    method = RKScheme(A,B,C, 2)
+
     solver = PyodysSolver(
-        method="sdirk4",       # DIRK method
+        method="sdirk4",       # SDIRK4 method
         # Implementation of the user's warning/intention:
         adaptive=False,        # DISABLED to avoid instability issues common in adaptive DAE stepping
         fixed_step=1e-4,       # Using a fixed, small step instead
+        # atol=1e-6,
+        # rtol=1e-6,
+        # nsteps_max=1_000_000,
         verbose=True,
-        linear_solver="lu",
+        # linear_solver="lu",
     ) 
 
     times, solutions = solver.solve(systeme)

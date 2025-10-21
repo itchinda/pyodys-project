@@ -6,31 +6,7 @@ from functools import lru_cache
 from typing import Dict, Any
 from ..scheme import Scheme
 from ...utils.pyodys_utils import _DEFAULT_ZERO_TOL
-
-@lru_cache(maxsize=1)
-def _load_schemes() -> Dict[str, Any]:
-    """Internal: load Butcher tableau JSON only once (lazy)."""
-    from .butcher_tableaus_data.available_butcher_table_data_to_json import (
-        available_butcher_table_data_to_json,
-    )
-
-    # Ensure JSON file exists/updated
-    available_butcher_table_data_to_json()
-
-    file_path = os.path.join(
-        os.path.dirname(__file__),
-        "butcher_tableaus_data/tableaux_de_butcher_disponibles.json",
-    )
-    with open(file_path, "r") as f:
-        data = json.load(f)
-
-    # Convert to NumPy arrays
-    for scheme_data in data.values():
-        scheme_data["A"] = np.array(scheme_data["A"], dtype=float)
-        scheme_data["B"] = np.array(scheme_data["B"], dtype=float)
-        scheme_data["C"] = np.array(scheme_data["C"], dtype=float)
-
-    return data
+from .built_in_rk_schemes.built_in_rk_schemes import get_scheme, get_available_rk_schemes_names
 
 class RKScheme(Scheme):
     """
@@ -117,7 +93,8 @@ class RKScheme(Scheme):
                  embedded_order: Union[int, float] = None, 
                  check_consistency: bool = False,
                  a_stable: bool = None,
-                 l_stable: bool = None
+                 l_stable: bool = None,
+                 reference: str = None
                  ):
         """
         Initialize a Runge-Kutta Butcher tableau.
@@ -208,6 +185,7 @@ class RKScheme(Scheme):
         self.embedded_order: Union[int, float] = embedded_order
         self.a_stable = a_stable
         self.l_stable = l_stable
+        self.reference = reference
 
     # ------------------ Properties ------------------
     @property
@@ -308,6 +286,9 @@ class RKScheme(Scheme):
                 b_row = " ".join(f"{val:>{max_width}.16g}" for val in row)
                 output += f"{'':>{max_width}}   {b_row}\n"
 
+        if self.reference is not None:
+            output += f"Reference: {self.reference}\n"
+
         return output
     
     def info(self) -> str:
@@ -354,6 +335,9 @@ class RKScheme(Scheme):
 
         if self.l_stable is not None:
             solver_info += f"\nL-stable: {self.l_stable}"
+        
+        if self.reference is not None:
+            solver_info += f"\nReference: {self.reference}"
         return solver_info
 
     @classmethod
@@ -374,14 +358,8 @@ class RKScheme(Scheme):
         Order: 4
         Embedded: No
         """
-        data = _load_schemes()
-        name_lower = name.lower()
-        if name_lower not in data:
-            available_schemas = "\n".join(data.keys())
-            raise ValueError(
-                f"Nom de schema inconnu: '{name}'. Schemas disponibles:\n{available_schemas}"
-            )
-        scheme_data = data[name_lower]
+
+        scheme_data = get_scheme(name)
         try:
             embedded_order = scheme_data['embedded_order']
         except KeyError:
@@ -397,7 +375,7 @@ class RKScheme(Scheme):
         except KeyError:
             l_stable = None
 
-        return cls(scheme_data["A"], scheme_data["B"], scheme_data["C"], scheme_data["order"], embedded_order, True, a_stable, l_stable)
+        return cls(np.asarray(scheme_data["A"]), np.asarray(scheme_data["B"]), np.asarray(scheme_data["C"]), scheme_data["order"], embedded_order, True, a_stable, l_stable)
 
     @classmethod
     def par_nom(cls, nom: str) -> "RKScheme":
@@ -407,5 +385,5 @@ class RKScheme(Scheme):
     @classmethod
     def available_schemes(cls):
         """List names of available schemes."""
-        return list(_load_schemes().keys())
+        return get_available_rk_schemes_names()
 
